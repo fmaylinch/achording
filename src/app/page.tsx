@@ -105,8 +105,18 @@ export default function Home() {
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.header}>
-          <h1>Chord Prototype</h1>
-          <p>Type Tonal chord symbols and optional @octave (ex: Cmaj7@3).</p>
+          <h1>Achording</h1>
+          <p>
+            Type{" "}
+            <a
+              href="https://tonaljs.github.io/tonal/docs/groups/chords"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Tonal chord symbols
+            </a>{" "}
+            and optional @octave (ex: Cmaj7@3).
+          </p>
         </div>
 
         <div className={styles.form}>

@@ -37,6 +37,17 @@
   font-size: 1rem;
 }
 
+.header a {
+  color: #1f5fbf;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+
+.header a:hover {
+  color: #15458a;
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -128,6 +139,14 @@
 
   .header p {
     color: #caa273;
+  }
+
+  .header a {
+    color: #93c5ff;
+  }
+
+  .header a:hover {
+    color: #bfdbff;
   }
 
   .label {
