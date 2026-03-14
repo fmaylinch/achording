@@ -1,141 +1,155 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
-
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
+  background: radial-gradient(circle at top right, #ffe8c8 0%, #f6d6b0 35%, #e9c39c 100%);
   display: flex;
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
+  padding: 32px 20px;
 }
 
 .main {
   display: flex;
-  min-height: 100vh;
   width: 100%;
-  max-width: 800px;
+  max-width: 720px;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
+  gap: 28px;
+  background: linear-gradient(160deg, #fffefc, #f8f1e7);
+  border-radius: 16px;
+  border: 1px solid #e8dcca;
+  box-shadow: 0 20px 60px rgb(65 34 2 / 12%);
+  padding: 36px;
 }
 
-.intro {
+.header {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
-}
-
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
-}
-
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
-}
-
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
-}
-
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
   gap: 8px;
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
+.header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2f1a07;
 }
 
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
-  }
+.header p {
+  color: #7a4f20;
+  font-size: 1rem;
+}
 
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
-  }
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  color: #5a3410;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  border: 1px solid #cfbeab;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 1rem;
+  color: #2f1a07;
+  background: #fff;
+}
+
+.input:focus {
+  outline: 2px solid #cc8b36;
+  outline-offset: 1px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.field {
+  flex: 1;
+}
+
+.playButton {
+  margin-top: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: #3a220a;
+  color: #fff7ee;
+  height: 44px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.playButton:hover:enabled {
+  background: #4d2d0e;
+}
+
+.playButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.error {
+  color: #a01818;
+  font-size: 0.92rem;
 }
 
 @media (max-width: 600px) {
   .main {
-    padding: 48px 24px;
+    padding: 22px;
   }
 
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
+  .row {
+    flex-direction: column;
   }
 }
 
 @media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
+  .page {
+    background: radial-gradient(circle at top right, #473021 0%, #2f1f13 40%, #20140c 100%);
   }
 
-  .page {
-    --background: #000;
-    --foreground: #000;
+  .main {
+    background: linear-gradient(160deg, #2d2116, #20160e);
+    border-color: #573d28;
+    box-shadow: 0 20px 60px rgb(0 0 0 / 35%);
+  }
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
+  .header h1 {
+    color: #ffddb3;
+  }
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+  .header p {
+    color: #caa273;
+  }
+
+  .label {
+    color: #ddb88f;
+  }
+
+  .input {
+    border-color: #6a4a2f;
+    background: #2f2115;
+    color: #fae7ce;
+  }
+
+  .playButton {
+    background: #e9c293;
+    color: #2b1909;
+  }
+
+  .playButton:hover:enabled {
+    background: #f3cf9f;
+  }
+
+  .error {
+    color: #ff9090;
   }
 }
