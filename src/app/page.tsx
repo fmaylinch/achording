@@ -5,6 +5,11 @@ import styles from "./page.module.css";
 import * as Tone from "tone";
 import { Chord, Note } from "@tonaljs/tonal";
 
+type SequenceEvent = {
+  durationBeats: number;
+  notes: string[] | null;
+};
+
 function toPlayableChord(chordSymbol: string): string[] {
   const trimmed = chordSymbol.trim();
   const match = /^(.*?)(?:@(-?\d+))?$/.exec(trimmed);
@@ -33,8 +38,30 @@ function toPlayableChord(chordSymbol: string): string[] {
   });
 }
 
+function parseEventToken(token: string, defaultBeats: number): SequenceEvent | null {
+  const trimmed = token.trim();
+  if (!trimmed) return null;
+
+  const match = /^(.*?)(?:\*(\d*\.?\d+))?$/.exec(trimmed);
+  if (!match) return null;
+
+  const eventSymbol = match[1].trim();
+  const durationBeats = match[2] ? Number.parseFloat(match[2]) : defaultBeats;
+
+  if (!Number.isFinite(durationBeats) || durationBeats <= 0 || !eventSymbol) return null;
+
+  if (/^(r|rest)$/i.test(eventSymbol)) {
+    return { durationBeats, notes: null };
+  }
+
+  const notes = toPlayableChord(eventSymbol);
+  if (notes.length === 0) return null;
+
+  return { durationBeats, notes };
+}
+
 export default function Home() {
-  const [progression, setProgression] = useState("C, Cmaj7, CM7, Am@3");
+  const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
   const [isPlaying, setIsPlaying] = useState(false);
@@ -60,25 +87,24 @@ export default function Home() {
   const handlePlay = async () => {
     if (isPlaying) return;
 
-    const chords = progression
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map(toPlayableChord);
-
-    if (chords.length === 0 || chords.some((notes) => notes.length === 0)) {
-      setError("Use Tonal chord symbols like Cmaj7@3, Dm7@3, G7@3.");
-      return;
-    }
-
     const bpm = Number.parseFloat(bpmInput);
-    const beats = Number.parseFloat(beatsInput);
+    const defaultBeats = Number.parseFloat(beatsInput);
     if (!Number.isFinite(bpm) || bpm <= 0) {
       setError("BPM must be a positive number.");
       return;
     }
-    if (!Number.isFinite(beats) || beats <= 0) {
-      setError("Chord length must be a positive number of beats.");
+    if (!Number.isFinite(defaultBeats) || defaultBeats <= 0) {
+      setError("Default chord length must be a positive number of beats.");
+      return;
+    }
+
+    const events = progression
+      .split(",")
+      .map((item) => parseEventToken(item, defaultBeats))
+      .filter((item): item is SequenceEvent => Boolean(item));
+
+    if (events.length === 0) {
+      setError("Use tokens like Cmaj7@3*2, R*1, Dm7, G7*0.5.");
       return;
     }
 
@@ -88,17 +114,22 @@ export default function Home() {
     await Tone.start();
     const synth = getSynth();
     const secondsPerBeat = 60 / bpm;
-    const chordDurationSeconds = beats * secondsPerBeat;
     const startTime = Tone.now() + 0.05;
+    let cursorTime = startTime;
+    let totalDurationSeconds = 0;
 
-    chords.forEach((notes, index) => {
-      const noteStart = startTime + index * chordDurationSeconds;
-      synth.triggerAttackRelease(notes, chordDurationSeconds * 0.9, noteStart);
+    events.forEach((event) => {
+      const eventDurationSeconds = event.durationBeats * secondsPerBeat;
+      if (event.notes) {
+        synth.triggerAttackRelease(event.notes, eventDurationSeconds * 0.9, cursorTime);
+      }
+      cursorTime += eventDurationSeconds;
+      totalDurationSeconds += eventDurationSeconds;
     });
 
     window.setTimeout(() => {
       setIsPlaying(false);
-    }, chords.length * chordDurationSeconds * 1000 + 120);
+    }, totalDurationSeconds * 1000 + 120);
   };
 
   return (
@@ -115,7 +146,8 @@ export default function Home() {
             >
               Tonal chord symbols
             </a>{" "}
-            and optional @octave (ex: Cmaj7@3).
+            with optional @octave and *beats (ex: Cmaj7@3*2). Use R or rest for
+            silence.
           </p>
         </div>
 
@@ -128,8 +160,12 @@ export default function Home() {
             className={styles.input}
             value={progression}
             onChange={(e) => setProgression(e.target.value)}
-            placeholder="Cmaj7@3, Dm7@3, G7@3, Cmaj7@3"
+            placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
           />
+          <p className={styles.hint}>
+            Format: comma-separated tokens. Examples: Cmaj7, Cmaj7@3, Cmaj7*2,
+            Cmaj7@3*2, R*1.
+          </p>
 
           <div className={styles.row}>
             <div className={styles.field}>
@@ -147,7 +183,7 @@ export default function Home() {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="beats">
-                Chord Length (beats)
+                Default Length (beats)
               </label>
               <input
                 id="beats"

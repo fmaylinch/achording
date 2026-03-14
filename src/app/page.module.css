@@ -54,6 +54,12 @@
   gap: 14px;
 }
 
+.hint {
+  margin-top: -4px;
+  color: #7a4f20;
+  font-size: 0.85rem;
+}
+
 .label {
   display: block;
   margin-bottom: 6px;
@@ -151,6 +157,10 @@
 
   .label {
     color: #ddb88f;
+  }
+
+  .hint {
+    color: #caa273;
   }
 
   .input {
