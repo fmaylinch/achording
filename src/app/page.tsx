@@ -3,28 +3,40 @@
 import { useRef, useState } from "react";
 import styles from "./page.module.css";
 import * as Tone from "tone";
+import { Chord, Note } from "@tonaljs/tonal";
 
-function normalizeNote(note: string): string {
-  const trimmed = note.trim();
-  if (!trimmed) return "";
+function toPlayableChord(chordSymbol: string): string[] {
+  const trimmed = chordSymbol.trim();
+  const match = /^(.*?)(?:@(-?\d+))?$/.exec(trimmed);
+  if (!match) return [];
 
-  const letter = trimmed[0]?.toUpperCase();
-  const accidental = trimmed[1] === "#" || trimmed[1] === "b" ? trimmed[1] : "";
-  const octave = trimmed.slice(1 + accidental.length);
+  const symbol = match[1].trim();
+  const baseOctave = match[2] ? Number.parseInt(match[2], 10) : 4;
+  if (!symbol || !Number.isFinite(baseOctave)) return [];
 
-  if (!letter || !/[A-G]/.test(letter)) return "";
-  return octave ? `${letter}${accidental}${octave}` : `${letter}${accidental}4`;
-}
+  const chord = Chord.get(symbol);
+  if (!chord || chord.empty || chord.notes.length === 0) return [];
 
-function parseChord(chordInput: string): string[] {
-  const rawNotes = chordInput.match(/[A-Ga-g][#b]?\d*/g) ?? [];
-  return rawNotes.map(normalizeNote).filter(Boolean);
+  let previousMidi = -Infinity;
+  return chord.notes.map((pitchClass) => {
+    const simplifiedPitch = Note.simplify(pitchClass) || pitchClass;
+    let octave = baseOctave;
+    let note = `${simplifiedPitch}${octave}`;
+    let midi = Tone.Frequency(note).toMidi();
+    while (midi <= previousMidi) {
+      octave += 1;
+      note = `${simplifiedPitch}${octave}`;
+      midi = Tone.Frequency(note).toMidi();
+    }
+    previousMidi = midi;
+    return note;
+  });
 }
 
 export default function Home() {
-  const [progression, setProgression] = useState("CEG, DFA");
+  const [progression, setProgression] = useState("C, Cmaj7, CM7, Am@3");
   const [bpmInput, setBpmInput] = useState("120");
-  const [beatsInput, setBeatsInput] = useState("4");
+  const [beatsInput, setBeatsInput] = useState("2");
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState("");
   const synthRef = useRef<Tone.PolySynth | null>(null);
@@ -52,10 +64,10 @@ export default function Home() {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean)
-      .map(parseChord);
+      .map(toPlayableChord);
 
     if (chords.length === 0 || chords.some((notes) => notes.length === 0)) {
-      setError("Please enter chords like CEG, DFA or C4E4G4, D4F4A4.");
+      setError("Use Tonal chord symbols like Cmaj7@3, Dm7@3, G7@3.");
       return;
     }
 
@@ -94,7 +106,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Chord Prototype</h1>
-          <p>Type chords and play them with Tone.js.</p>
+          <p>Type Tonal chord symbols and optional @octave (ex: Cmaj7@3).</p>
         </div>
 
         <div className={styles.form}>
@@ -106,7 +118,7 @@ export default function Home() {
             className={styles.input}
             value={progression}
             onChange={(e) => setProgression(e.target.value)}
-            placeholder="CEG, DFA"
+            placeholder="Cmaj7@3, Dm7@3, G7@3, Cmaj7@3"
           />
 
           <div className={styles.row}>
