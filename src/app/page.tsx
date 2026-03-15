@@ -35,6 +35,142 @@ type FilterSettings = {
   q: number;
 };
 
+type KnobProps = {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  onChange: (value: number) => void;
+  formatValue?: (value: number) => string;
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function quantize(value: number, min: number, step: number): number {
+  if (step <= 0) return value;
+
+  const rounded = Math.round((value - min) / step) * step + min;
+  const precision = Math.max(0, (step.toString().split(".")[1] || "").length);
+  return Number(rounded.toFixed(precision));
+}
+
+function Knob({
+  id,
+  label,
+  value,
+  min,
+  max,
+  step,
+  defaultValue,
+  onChange,
+  formatValue,
+}: KnobProps) {
+  const dragStateRef = useRef<{ startY: number; startValue: number } | null>(null);
+  const ratio = (value - min) / (max - min);
+  const angle = -135 + ratio * 270;
+  const displayValue = formatValue ? formatValue(value) : value.toString();
+
+  const applyDelta = (delta: number) => {
+    const nextValue = clamp(quantize(value + delta, min, step), min, max);
+    onChange(nextValue);
+  };
+
+  return (
+    <div className={styles.knobField}>
+      <label id={`${id}-label`} className={styles.knobLabel} htmlFor={id}>
+        {label}
+      </label>
+      <button
+        id={id}
+        type="button"
+        className={styles.knob}
+        role="slider"
+        aria-labelledby={`${id}-label`}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={displayValue}
+        onDoubleClick={() => onChange(defaultValue)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowUp" || e.key === "ArrowRight") {
+            e.preventDefault();
+            applyDelta(e.shiftKey ? step * 0.2 : step);
+            return;
+          }
+
+          if (e.key === "ArrowDown" || e.key === "ArrowLeft") {
+            e.preventDefault();
+            applyDelta(e.shiftKey ? -step * 0.2 : -step);
+            return;
+          }
+
+          if (e.key === "Home") {
+            e.preventDefault();
+            onChange(min);
+            return;
+          }
+
+          if (e.key === "End") {
+            e.preventDefault();
+            onChange(max);
+          }
+        }}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.currentTarget.focus();
+          e.currentTarget.setPointerCapture(e.pointerId);
+          dragStateRef.current = {
+            startY: e.clientY,
+            startValue: value,
+          };
+        }}
+        onPointerMove={(e) => {
+          const dragState = dragStateRef.current;
+          if (!dragState) return;
+
+          const dragDistance = dragState.startY - e.clientY;
+          const dragScale = e.shiftKey ? 640 : 140;
+          const normalizedDelta = dragDistance / dragScale;
+          const valueDelta = normalizedDelta * (max - min);
+          const nextValue = clamp(quantize(dragState.startValue + valueDelta, min, step), min, max);
+          onChange(nextValue);
+        }}
+        onPointerUp={() => {
+          dragStateRef.current = null;
+        }}
+        onPointerCancel={() => {
+          dragStateRef.current = null;
+        }}
+      >
+        <svg viewBox="0 0 100 100" className={styles.knobDial} aria-hidden="true">
+          <circle cx="50" cy="50" r="40" className={styles.knobTrack} />
+          <circle
+            cx="50"
+            cy="50"
+            r="40"
+            className={styles.knobArc}
+            style={{ strokeDashoffset: `${251.33 - ratio * 188.5}` }}
+          />
+          <line
+            x1="50"
+            y1="50"
+            x2="50"
+            y2="20"
+            className={styles.knobIndicator}
+            style={{ transform: `rotate(${angle}deg)`, transformOrigin: "50px 50px" }}
+          />
+        </svg>
+        <span className={styles.knobValue}>{displayValue}</span>
+      </button>
+    </div>
+  );
+}
+
 function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
   const symbol = chordSymbol.trim();
   if (!symbol || !Number.isFinite(baseOctave)) return [];
@@ -486,97 +622,81 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
-                  <label className={styles.sliderLabel} htmlFor={`osc-volume-${oscillator.id}`}>
-                    Level: {oscillator.volumeDb} dB
-                  </label>
-                  <input
-                    id={`osc-volume-${oscillator.id}`}
-                    type="range"
-                    min="-30"
-                    max="0"
-                    step="1"
-                    className={styles.slider}
-                    value={oscillator.volumeDb}
-                    onChange={(e) =>
-                      updateOscillator(oscillator.id, "volumeDb", Number.parseFloat(e.target.value))
-                    }
-                  />
-                  <label className={styles.sliderLabel} htmlFor={`osc-detune-${oscillator.id}`}>
-                    Detune: {oscillator.detuneCents} cents
-                  </label>
-                  <input
-                    id={`osc-detune-${oscillator.id}`}
-                    type="range"
-                    min="-1200"
-                    max="1200"
-                    step="1"
-                    className={styles.slider}
-                    value={oscillator.detuneCents}
-                    onChange={(e) =>
-                      updateOscillator(oscillator.id, "detuneCents", Number.parseFloat(e.target.value))
-                    }
-                  />
+                  <div className={styles.knobRow}>
+                    <Knob
+                      id={`osc-volume-${oscillator.id}`}
+                      label="Level"
+                      min={-30}
+                      max={0}
+                      step={1}
+                      value={oscillator.volumeDb}
+                      defaultValue={-12}
+                      onChange={(next) => updateOscillator(oscillator.id, "volumeDb", next)}
+                      formatValue={(next) => `${next} dB`}
+                    />
+                    <Knob
+                      id={`osc-detune-${oscillator.id}`}
+                      label="Detune"
+                      min={-1200}
+                      max={1200}
+                      step={1}
+                      value={oscillator.detuneCents}
+                      defaultValue={0}
+                      onChange={(next) => updateOscillator(oscillator.id, "detuneCents", next)}
+                      formatValue={(next) => `${next} ct`}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
             <div className={styles.envelopePanel}>
               <p className={styles.sectionTitle}>ADSR Envelope</p>
-
-              <label className={styles.sliderLabel} htmlFor="attack">
-                Attack: {envelope.attack.toFixed(3)}s
-              </label>
-              <input
-                id="attack"
-                type="range"
-                min="0"
-                max="2"
-                step="0.005"
-                className={styles.slider}
-                value={envelope.attack}
-                onChange={(e) => updateEnvelope("attack", Number.parseFloat(e.target.value))}
-              />
-
-              <label className={styles.sliderLabel} htmlFor="decay">
-                Decay: {envelope.decay.toFixed(3)}s
-              </label>
-              <input
-                id="decay"
-                type="range"
-                min="0"
-                max="2"
-                step="0.005"
-                className={styles.slider}
-                value={envelope.decay}
-                onChange={(e) => updateEnvelope("decay", Number.parseFloat(e.target.value))}
-              />
-
-              <label className={styles.sliderLabel} htmlFor="sustain">
-                Sustain: {envelope.sustain.toFixed(3)}
-              </label>
-              <input
-                id="sustain"
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                className={styles.slider}
-                value={envelope.sustain}
-                onChange={(e) => updateEnvelope("sustain", Number.parseFloat(e.target.value))}
-              />
-
-              <label className={styles.sliderLabel} htmlFor="release">
-                Release: {envelope.release.toFixed(3)}s
-              </label>
-              <input
-                id="release"
-                type="range"
-                min="0.05"
-                max="4"
-                step="0.01"
-                className={styles.slider}
-                value={envelope.release}
-                onChange={(e) => updateEnvelope("release", Number.parseFloat(e.target.value))}
-              />
+              <div className={styles.knobRowAdsr}>
+                <Knob
+                  id="attack"
+                  label="Attack"
+                  min={0}
+                  max={2}
+                  step={0.005}
+                  value={envelope.attack}
+                  defaultValue={0.005}
+                  onChange={(next) => updateEnvelope("attack", next)}
+                  formatValue={(next) => `${next.toFixed(3)} s`}
+                />
+                <Knob
+                  id="decay"
+                  label="Decay"
+                  min={0}
+                  max={2}
+                  step={0.005}
+                  value={envelope.decay}
+                  defaultValue={0.15}
+                  onChange={(next) => updateEnvelope("decay", next)}
+                  formatValue={(next) => `${next.toFixed(3)} s`}
+                />
+                <Knob
+                  id="sustain"
+                  label="Sustain"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={envelope.sustain}
+                  defaultValue={0.25}
+                  onChange={(next) => updateEnvelope("sustain", next)}
+                  formatValue={(next) => next.toFixed(2)}
+                />
+                <Knob
+                  id="release"
+                  label="Release"
+                  min={0.05}
+                  max={4}
+                  step={0.01}
+                  value={envelope.release}
+                  defaultValue={1.2}
+                  onChange={(next) => updateEnvelope("release", next)}
+                  formatValue={(next) => `${next.toFixed(2)} s`}
+                />
+              </div>
             </div>
           </details>
 
@@ -599,33 +719,30 @@ export default function Home() {
                 ))}
               </select>
 
-              <label className={styles.sliderLabel} htmlFor="filter-frequency">
-                Cutoff: {Math.round(filter.frequency)} Hz
-              </label>
-              <input
-                id="filter-frequency"
-                type="range"
-                min="60"
-                max="18000"
-                step="1"
-                className={styles.slider}
-                value={filter.frequency}
-                onChange={(e) => updateFilter("frequency", Number.parseFloat(e.target.value))}
-              />
-
-              <label className={styles.sliderLabel} htmlFor="filter-q">
-                Resonance (Q): {filter.q.toFixed(1)}
-              </label>
-              <input
-                id="filter-q"
-                type="range"
-                min="0.1"
-                max="20"
-                step="0.1"
-                className={styles.slider}
-                value={filter.q}
-                onChange={(e) => updateFilter("q", Number.parseFloat(e.target.value))}
-              />
+              <div className={styles.knobRow}>
+                <Knob
+                  id="filter-frequency"
+                  label="Cutoff"
+                  min={60}
+                  max={18000}
+                  step={1}
+                  value={filter.frequency}
+                  defaultValue={12000}
+                  onChange={(next) => updateFilter("frequency", next)}
+                  formatValue={(next) => `${Math.round(next)} Hz`}
+                />
+                <Knob
+                  id="filter-q"
+                  label="Resonance"
+                  min={0.1}
+                  max={20}
+                  step={0.1}
+                  value={filter.q}
+                  defaultValue={1}
+                  onChange={(next) => updateFilter("q", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+              </div>
             </div>
           </details>
 

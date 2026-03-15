@@ -150,15 +150,85 @@
   color: #4a2a0d;
 }
 
-.sliderLabel {
+.knobRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.knobRowAdsr {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.knobField {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.knobLabel {
   color: #5a3410;
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
-.slider {
+.knob {
+  border: 1px solid #d5c1a7;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #fff7ee, #f7e7d4);
   width: 100%;
-  accent-color: #7c4a14;
+  max-width: 110px;
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+  padding: 8px;
+}
+
+.knob:focus-visible {
+  outline: 2px solid #cc8b36;
+  outline-offset: 1px;
+}
+
+.knobDial {
+  width: 76%;
+  height: auto;
+}
+
+.knobTrack {
+  fill: none;
+  stroke: #e9d9c6;
+  stroke-width: 8;
+}
+
+.knobArc {
+  fill: none;
+  stroke: #7c4a14;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 251.33;
+  stroke-dashoffset: 62.83;
+  transform: rotate(135deg);
+  transform-origin: 50px 50px;
+}
+
+.knobIndicator {
+  stroke: #3e250a;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.knobValue {
+  color: #4a2a0d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .playButton {
@@ -198,6 +268,14 @@
 
   .oscillatorGrid {
     grid-template-columns: 1fr;
+  }
+
+  .knobRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .knobRowAdsr {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -266,16 +344,33 @@
     background: #2a1d12;
   }
 
-  .sectionTitle {
-    color: #e8c59d;
-  }
-
-  .sliderLabel {
+  .knobLabel {
     color: #ddb88f;
   }
 
-  .slider {
-    accent-color: #f0c48f;
+  .knob {
+    border-color: #6a4a2f;
+    background: linear-gradient(165deg, #3a2a1c, #2a1e14);
+  }
+
+  .knobTrack {
+    stroke: #5f4229;
+  }
+
+  .knobArc {
+    stroke: #edba7a;
+  }
+
+  .knobIndicator {
+    stroke: #f4d1a5;
+  }
+
+  .knobValue {
+    color: #f8d9b2;
+  }
+
+  .sectionTitle {
+    color: #e8c59d;
   }
 
   .playButton {
