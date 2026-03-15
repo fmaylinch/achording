@@ -63,6 +63,7 @@ type FilterSettings = {
 type GeneratorProbabilities = {
   lengthVariation: number;
   chordVariation: number;
+  rootModeChange: number;
   hasThird: number;
   seventh: number;
   suspended: number;
@@ -623,27 +624,28 @@ export default function Home() {
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
   const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
     lengthVariation: 0,
-    chordVariation: 60,
+    chordVariation: 80,
+    rootModeChange: 0,
     hasThird: 80,
-    seventh: 20,
-    suspended: 20,
-    parallel: 20,
-    diminished: 20,
-    inversion: 20,
+    seventh: 0,
+    suspended: 0,
+    parallel: 0,
+    diminished: 0,
+    inversion: 0,
   });
   const [generatorLength, setGeneratorLength] = useState(4);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
-    { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
+    { id: "osc-1", type: "sawtooth", volumeDb: -12, detuneCents: 0 },
     { id: "osc-2", type: "sine", volumeDb: -12, detuneCents: 8 },
   ]);
   const [filter, setFilter] = useState<FilterSettings>({
     type: "lowpass",
-    frequency: 12000,
+    frequency: 8000,
     q: 1,
   });
   const [envelope, setEnvelope] = useState<EnvelopeSettings>({
-    attack: 0.005,
+    attack: 0.06,
     decay: 0.15,
     sustain: 0.25,
     release: 1.2,
@@ -796,10 +798,36 @@ export default function Home() {
   };
 
   const handleGenerateProgression = () => {
+    let nextRoot = scaleRoot;
+    let nextMode = scaleMode;
+    const shouldChangeRoot = roll(generatorProbabilities.rootModeChange);
+    const shouldChangeMode = roll(generatorProbabilities.rootModeChange);
+
+    if (shouldChangeRoot) {
+      const availableRoots = scaleRootNotes.filter((rootNote) => rootNote !== scaleRoot);
+      if (availableRoots.length > 0) {
+        const randomRootIndex = Math.floor(Math.random() * availableRoots.length);
+        nextRoot = availableRoots[randomRootIndex];
+      }
+    }
+
+    if (shouldChangeMode) {
+      const availableModes = scaleModes.filter((modeValue) => modeValue !== scaleMode);
+      if (availableModes.length > 0) {
+        const randomModeIndex = Math.floor(Math.random() * availableModes.length);
+        nextMode = availableModes[randomModeIndex];
+      }
+    }
+
+    if (shouldChangeRoot || shouldChangeMode) {
+      setScaleRoot(nextRoot);
+      setScaleMode(nextMode);
+    }
+
     setProgression(
       `Chords: ${generateDiatonicChordProgression(
-        scaleRoot,
-        scaleMode,
+        nextRoot,
+        nextMode,
         generatorProbabilities,
         generatorLength,
       )}`,
@@ -1075,6 +1103,17 @@ export default function Home() {
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
+                  id="generator-root-mode-change"
+                  label="key/mode"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={generatorProbabilities.rootModeChange}
+                  defaultValue={20}
+                  onChange={(next) => updateGeneratorProbability("rootModeChange", next)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
+                />
+                <Knob
                   id="generator-parallel"
                   label="borrowed"
                   min={0}
@@ -1085,6 +1124,8 @@ export default function Home() {
                   onChange={(next) => updateGeneratorProbability("parallel", next)}
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
+              </div>
+              <div className={styles.knobRowGenerator}>
                 <Knob
                   id="generator-inversion"
                   label="inversions"
@@ -1096,8 +1137,6 @@ export default function Home() {
                   onChange={(next) => updateGeneratorProbability("inversion", next)}
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
-              </div>
-              <div className={styles.knobRowGenerator}>
                 <Knob
                   id="generator-third"
                   label="3rd"
