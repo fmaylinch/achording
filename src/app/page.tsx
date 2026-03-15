@@ -362,167 +362,171 @@ export default function Home() {
             {isPlaying ? "Stop" : "Play"}
           </button>
 
-          <div className={styles.oscillatorGrid}>
-            {oscillators.map((oscillator, index) => (
-              <div key={oscillator.id} className={styles.oscillatorCard}>
-                <p className={styles.sectionTitle}>Oscillator {index + 1}</p>
-                <label className={styles.label} htmlFor={`osc-type-${oscillator.id}`}>
-                  Type
-                </label>
-                <select
-                  id={`osc-type-${oscillator.id}`}
-                  className={styles.input}
-                  value={oscillator.type}
-                  onChange={(e) =>
-                    updateOscillator(oscillator.id, "type", e.target.value as OscillatorType)
-                  }
-                >
-                  {oscillatorTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <label className={styles.sliderLabel} htmlFor={`osc-volume-${oscillator.id}`}>
-                  Level: {oscillator.volumeDb} dB
-                </label>
-                <input
-                  id={`osc-volume-${oscillator.id}`}
-                  type="range"
-                  min="-30"
-                  max="0"
-                  step="1"
-                  className={styles.slider}
-                  value={oscillator.volumeDb}
-                  onChange={(e) =>
-                    updateOscillator(oscillator.id, "volumeDb", Number.parseFloat(e.target.value))
-                  }
-                />
-                <label className={styles.sliderLabel} htmlFor={`osc-detune-${oscillator.id}`}>
-                  Detune: {oscillator.detuneCents} cents
-                </label>
-                <input
-                  id={`osc-detune-${oscillator.id}`}
-                  type="range"
-                  min="-1200"
-                  max="1200"
-                  step="1"
-                  className={styles.slider}
-                  value={oscillator.detuneCents}
-                  onChange={(e) =>
-                    updateOscillator(oscillator.id, "detuneCents", Number.parseFloat(e.target.value))
-                  }
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className={styles.envelopePanel}>
-            <p className={styles.sectionTitle}>ADSR Envelope</p>
-
-            <label className={styles.sliderLabel} htmlFor="attack">
-              Attack: {envelope.attack.toFixed(3)}s
-            </label>
-            <input
-              id="attack"
-              type="range"
-              min="0"
-              max="2"
-              step="0.005"
-              className={styles.slider}
-              value={envelope.attack}
-              onChange={(e) => updateEnvelope("attack", Number.parseFloat(e.target.value))}
-            />
-
-            <label className={styles.sliderLabel} htmlFor="decay">
-              Decay: {envelope.decay.toFixed(3)}s
-            </label>
-            <input
-              id="decay"
-              type="range"
-              min="0"
-              max="2"
-              step="0.005"
-              className={styles.slider}
-              value={envelope.decay}
-              onChange={(e) => updateEnvelope("decay", Number.parseFloat(e.target.value))}
-            />
-
-            <label className={styles.sliderLabel} htmlFor="sustain">
-              Sustain: {envelope.sustain.toFixed(3)}
-            </label>
-            <input
-              id="sustain"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              className={styles.slider}
-              value={envelope.sustain}
-              onChange={(e) => updateEnvelope("sustain", Number.parseFloat(e.target.value))}
-            />
-
-            <label className={styles.sliderLabel} htmlFor="release">
-              Release: {envelope.release.toFixed(3)}s
-            </label>
-            <input
-              id="release"
-              type="range"
-              min="0.05"
-              max="4"
-              step="0.01"
-              className={styles.slider}
-              value={envelope.release}
-              onChange={(e) => updateEnvelope("release", Number.parseFloat(e.target.value))}
-            />
-          </div>
-
-          <div className={styles.filterPanel}>
-            <p className={styles.sectionTitle}>Filter</p>
-            <label className={styles.label} htmlFor="filter-type">
-              Type
-            </label>
-            <select
-              id="filter-type"
-              className={styles.input}
-              value={filter.type}
-              onChange={(e) => updateFilter("type", e.target.value as FilterType)}
-            >
-              {filterTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
+          <details className={styles.collapsible}>
+            <summary className={styles.collapsibleSummary}>Oscillators + ADSR</summary>
+            <div className={styles.oscillatorGrid}>
+              {oscillators.map((oscillator, index) => (
+                <div key={oscillator.id} className={styles.oscillatorCard}>
+                  <p className={styles.sectionTitle}>Oscillator {index + 1}</p>
+                  <label className={styles.label} htmlFor={`osc-type-${oscillator.id}`}>
+                    Type
+                  </label>
+                  <select
+                    id={`osc-type-${oscillator.id}`}
+                    className={styles.input}
+                    value={oscillator.type}
+                    onChange={(e) =>
+                      updateOscillator(oscillator.id, "type", e.target.value as OscillatorType)
+                    }
+                  >
+                    {oscillatorTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <label className={styles.sliderLabel} htmlFor={`osc-volume-${oscillator.id}`}>
+                    Level: {oscillator.volumeDb} dB
+                  </label>
+                  <input
+                    id={`osc-volume-${oscillator.id}`}
+                    type="range"
+                    min="-30"
+                    max="0"
+                    step="1"
+                    className={styles.slider}
+                    value={oscillator.volumeDb}
+                    onChange={(e) =>
+                      updateOscillator(oscillator.id, "volumeDb", Number.parseFloat(e.target.value))
+                    }
+                  />
+                  <label className={styles.sliderLabel} htmlFor={`osc-detune-${oscillator.id}`}>
+                    Detune: {oscillator.detuneCents} cents
+                  </label>
+                  <input
+                    id={`osc-detune-${oscillator.id}`}
+                    type="range"
+                    min="-1200"
+                    max="1200"
+                    step="1"
+                    className={styles.slider}
+                    value={oscillator.detuneCents}
+                    onChange={(e) =>
+                      updateOscillator(oscillator.id, "detuneCents", Number.parseFloat(e.target.value))
+                    }
+                  />
+                </div>
               ))}
-            </select>
+            </div>
+            <div className={styles.envelopePanel}>
+              <p className={styles.sectionTitle}>ADSR Envelope</p>
 
-            <label className={styles.sliderLabel} htmlFor="filter-frequency">
-              Cutoff: {Math.round(filter.frequency)} Hz
-            </label>
-            <input
-              id="filter-frequency"
-              type="range"
-              min="60"
-              max="18000"
-              step="1"
-              className={styles.slider}
-              value={filter.frequency}
-              onChange={(e) => updateFilter("frequency", Number.parseFloat(e.target.value))}
-            />
+              <label className={styles.sliderLabel} htmlFor="attack">
+                Attack: {envelope.attack.toFixed(3)}s
+              </label>
+              <input
+                id="attack"
+                type="range"
+                min="0"
+                max="2"
+                step="0.005"
+                className={styles.slider}
+                value={envelope.attack}
+                onChange={(e) => updateEnvelope("attack", Number.parseFloat(e.target.value))}
+              />
 
-            <label className={styles.sliderLabel} htmlFor="filter-q">
-              Resonance (Q): {filter.q.toFixed(1)}
-            </label>
-            <input
-              id="filter-q"
-              type="range"
-              min="0.1"
-              max="20"
-              step="0.1"
-              className={styles.slider}
-              value={filter.q}
-              onChange={(e) => updateFilter("q", Number.parseFloat(e.target.value))}
-            />
-          </div>
+              <label className={styles.sliderLabel} htmlFor="decay">
+                Decay: {envelope.decay.toFixed(3)}s
+              </label>
+              <input
+                id="decay"
+                type="range"
+                min="0"
+                max="2"
+                step="0.005"
+                className={styles.slider}
+                value={envelope.decay}
+                onChange={(e) => updateEnvelope("decay", Number.parseFloat(e.target.value))}
+              />
+
+              <label className={styles.sliderLabel} htmlFor="sustain">
+                Sustain: {envelope.sustain.toFixed(3)}
+              </label>
+              <input
+                id="sustain"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                className={styles.slider}
+                value={envelope.sustain}
+                onChange={(e) => updateEnvelope("sustain", Number.parseFloat(e.target.value))}
+              />
+
+              <label className={styles.sliderLabel} htmlFor="release">
+                Release: {envelope.release.toFixed(3)}s
+              </label>
+              <input
+                id="release"
+                type="range"
+                min="0.05"
+                max="4"
+                step="0.01"
+                className={styles.slider}
+                value={envelope.release}
+                onChange={(e) => updateEnvelope("release", Number.parseFloat(e.target.value))}
+              />
+            </div>
+          </details>
+
+          <details className={styles.collapsible}>
+            <summary className={styles.collapsibleSummary}>Filter</summary>
+            <div className={styles.filterPanel}>
+              <label className={styles.label} htmlFor="filter-type">
+                Type
+              </label>
+              <select
+                id="filter-type"
+                className={styles.input}
+                value={filter.type}
+                onChange={(e) => updateFilter("type", e.target.value as FilterType)}
+              >
+                {filterTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+
+              <label className={styles.sliderLabel} htmlFor="filter-frequency">
+                Cutoff: {Math.round(filter.frequency)} Hz
+              </label>
+              <input
+                id="filter-frequency"
+                type="range"
+                min="60"
+                max="18000"
+                step="1"
+                className={styles.slider}
+                value={filter.frequency}
+                onChange={(e) => updateFilter("frequency", Number.parseFloat(e.target.value))}
+              />
+
+              <label className={styles.sliderLabel} htmlFor="filter-q">
+                Resonance (Q): {filter.q.toFixed(1)}
+              </label>
+              <input
+                id="filter-q"
+                type="range"
+                min="0.1"
+                max="20"
+                step="0.1"
+                className={styles.slider}
+                value={filter.q}
+                onChange={(e) => updateFilter("q", Number.parseFloat(e.target.value))}
+              />
+            </div>
+          </details>
 
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>

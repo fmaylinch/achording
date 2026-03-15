@@ -98,6 +98,21 @@
   gap: 12px;
 }
 
+.collapsible {
+  border: 1px solid #ddc8b0;
+  border-radius: 12px;
+  background: #fff9f2;
+  padding: 10px 12px 12px;
+}
+
+.collapsibleSummary {
+  cursor: pointer;
+  color: #4a2a0d;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
 .oscillatorCard {
   border: 1px solid #ddc8b0;
   border-radius: 12px;
@@ -225,6 +240,15 @@
     border-color: #6a4a2f;
     background: #2f2115;
     color: #fae7ce;
+  }
+
+  .collapsible {
+    border-color: #6a4a2f;
+    background: #2a1d12;
+  }
+
+  .collapsibleSummary {
+    color: #e8c59d;
   }
 
   .oscillatorCard {
