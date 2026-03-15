@@ -436,13 +436,13 @@ function generateDiatonicChordProgression(
     const includeDiminished = roll(probabilities.diminished);
     const nonDiminishedPool = allDegrees.filter((degree) => !isDiminishedDegree(degree));
     const allowedDegrees = includeDiminished ? allDegrees : nonDiminishedPool;
-    const usedAllowedDegrees = usedDegrees.filter((degree) => allowedDegrees.includes(degree));
     const unusedAllowedDegrees = allowedDegrees.filter((degree) => !usedDegrees.includes(degree));
-    const shouldReuseUsedChord =
-      chosenDegrees.length > 0 && Math.random() < normalizedChordVariation / 100;
+    const randomVariationRoll = Math.floor(Math.random() * 100);
+    const shouldPickRandomChordNormally =
+      chosenDegrees.length === 0 || normalizedChordVariation > randomVariationRoll;
 
-    const sourcePool = shouldReuseUsedChord ? usedAllowedDegrees : unusedAllowedDegrees;
-    const fallbackPool = shouldReuseUsedChord ? unusedAllowedDegrees : usedAllowedDegrees;
+    const sourcePool = shouldPickRandomChordNormally ? unusedAllowedDegrees : usedDegrees;
+    const fallbackPool = shouldPickRandomChordNormally ? usedDegrees : unusedAllowedDegrees;
     const nonDiminishedFallbackPool = nonDiminishedPool.filter(
       (degree) => !isDiminishedDegree(degree),
     );
@@ -461,7 +461,7 @@ function generateDiatonicChordProgression(
     chosenDegrees.push(degree);
   }
 
-  const chordSymbols = chosenDegrees.map((degree) => {
+  const buildChordSymbolForDegree = (degree: number): string => {
     const chordRoot = scaleNotes[degree];
     const chordThird = scaleNotes[(degree + 2) % scaleNotes.length];
     const chordFifth = scaleNotes[(degree + 4) % scaleNotes.length];
@@ -501,6 +501,16 @@ function generateDiatonicChordProgression(
     } else if (thirdDistance === 3 && fifthDistance === 6) {
       chordSymbol = isSeventh ? `${chordRoot}m7b5` : `${chordRoot}dim`;
     }
+
+    return chordSymbol;
+  };
+
+  const degreeToChordSymbol = new Map<number, string>();
+  const chordSymbols = chosenDegrees.map((degree) => {
+    if (!degreeToChordSymbol.has(degree)) {
+      degreeToChordSymbol.set(degree, buildChordSymbolForDegree(degree));
+    }
+    const chordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
 
     const useRandomDuration = Math.random() < normalizedLengthVariation / 100;
     if (!useRandomDuration) {
@@ -572,7 +582,7 @@ export default function Home() {
   });
   const [generatorLength, setGeneratorLength] = useState(4);
   const [generatorLengthVariation, setGeneratorLengthVariation] = useState(0);
-  const [generatorChordVariation, setGeneratorChordVariation] = useState(40);
+  const [generatorChordVariation, setGeneratorChordVariation] = useState(60);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -1013,7 +1023,7 @@ export default function Home() {
                   max={100}
                   step={1}
                   value={generatorChordVariation}
-                  defaultValue={40}
+                  defaultValue={60}
                   onChange={(next) => setGeneratorChordVariation(next)}
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
