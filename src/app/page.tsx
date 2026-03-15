@@ -61,6 +61,8 @@ type FilterSettings = {
 };
 
 type GeneratorProbabilities = {
+  lengthVariation: number;
+  chordVariation: number;
   hasThird: number;
   seventh: number;
   suspended: number;
@@ -430,8 +432,8 @@ function parseSequenceEvents(progression: string, defaultBeats: number): Sequenc
   return events;
 }
 
-function roll(probabilityOnTenScale: number): boolean {
-  return Math.random() < clamp(probabilityOnTenScale / 10, 0, 1);
+function roll(probabilityPercent: number): boolean {
+  return Math.random() < clamp(probabilityPercent / 100, 0, 1);
 }
 
 function generateDiatonicChordProgression(
@@ -439,8 +441,6 @@ function generateDiatonicChordProgression(
   mode: ScaleMode,
   probabilities: GeneratorProbabilities,
   progressionLength: number,
-  lengthVariationPercent: number,
-  chordVariationPercent: number,
 ): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
@@ -448,8 +448,8 @@ function generateDiatonicChordProgression(
   const usedDegrees: number[] = [];
   const chosenDegrees: number[] = [];
   const normalizedLength = clamp(Math.round(progressionLength), 1, 16);
-  const normalizedLengthVariation = clamp(lengthVariationPercent, 0, 100);
-  const normalizedChordVariation = clamp(chordVariationPercent, 0, 100);
+  const normalizedLengthVariation = clamp(probabilities.lengthVariation, 0, 100);
+  const normalizedChordVariation = clamp(probabilities.chordVariation, 0, 100);
 
   const isDiminishedDegree = (degree: number): boolean => {
     const chordRoot = scaleNotes[degree];
@@ -622,16 +622,16 @@ export default function Home() {
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
   const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
-    hasThird: 8.0,
-    seventh: 2.0,
-    suspended: 2.0,
-    parallel: 2.0,
-    diminished: 2.0,
-    inversion: 2.0,
+    lengthVariation: 0,
+    chordVariation: 60,
+    hasThird: 80,
+    seventh: 20,
+    suspended: 20,
+    parallel: 20,
+    diminished: 20,
+    inversion: 20,
   });
   const [generatorLength, setGeneratorLength] = useState(4);
-  const [generatorLengthVariation, setGeneratorLengthVariation] = useState(0);
-  const [generatorChordVariation, setGeneratorChordVariation] = useState(60);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -802,8 +802,6 @@ export default function Home() {
         scaleMode,
         generatorProbabilities,
         generatorLength,
-        generatorLengthVariation,
-        generatorChordVariation,
       )}`,
     );
     flashProgressionInput();
@@ -1052,17 +1050,17 @@ export default function Home() {
                   value={generatorLength}
                   defaultValue={4}
                   onChange={(next) => setGeneratorLength(next)}
-                  formatValue={(next) => next.toFixed(0)}
+                  formatValue={(next) => `${next.toFixed(0)} chords`}
                 />
                 <Knob
                   id="generator-length-variation"
-                  label="len var"
+                  label="duration var"
                   min={0}
                   max={100}
                   step={1}
-                  value={generatorLengthVariation}
+                  value={generatorProbabilities.lengthVariation}
                   defaultValue={0}
-                  onChange={(next) => setGeneratorLengthVariation(next)}
+                  onChange={(next) => updateGeneratorProbability("lengthVariation", next)}
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
@@ -1071,32 +1069,32 @@ export default function Home() {
                   min={0}
                   max={100}
                   step={1}
-                  value={generatorChordVariation}
+                  value={generatorProbabilities.chordVariation}
                   defaultValue={60}
-                  onChange={(next) => setGeneratorChordVariation(next)}
+                  onChange={(next) => updateGeneratorProbability("chordVariation", next)}
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-parallel"
-                  label="parallel"
+                  label="borrowed"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.parallel}
-                  defaultValue={1}
+                  defaultValue={20}
                   onChange={(next) => updateGeneratorProbability("parallel", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-inversion"
-                  label="inv"
+                  label="inversions"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.inversion}
-                  defaultValue={2}
+                  defaultValue={20}
                   onChange={(next) => updateGeneratorProbability("inversion", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
               </div>
               <div className={styles.knobRowGenerator}>
@@ -1104,45 +1102,45 @@ export default function Home() {
                   id="generator-third"
                   label="3rd"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.hasThird}
-                  defaultValue={8.0}
+                  defaultValue={80}
                   onChange={(next) => updateGeneratorProbability("hasThird", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-seventh"
                   label="7th"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.seventh}
-                  defaultValue={2}
+                  defaultValue={20}
                   onChange={(next) => updateGeneratorProbability("seventh", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-sus"
                   label="sus"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.suspended}
-                  defaultValue={1}
+                  defaultValue={20}
                   onChange={(next) => updateGeneratorProbability("suspended", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-diminished"
                   label="dim"
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={100}
+                  step={1}
                   value={generatorProbabilities.diminished}
-                  defaultValue={2}
+                  defaultValue={20}
                   onChange={(next) => updateGeneratorProbability("diminished", next)}
-                  formatValue={(next) => next.toFixed(1)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
               </div>
               <button
