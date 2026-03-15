@@ -407,11 +407,13 @@ function generateDiatonicChordProgression(
   root: ScaleRootNote,
   mode: ScaleMode,
   probabilities: GeneratorProbabilities,
+  progressionLength: number,
 ): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
   const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
   const chosenDegrees: number[] = [];
+  const normalizedLength = clamp(Math.round(progressionLength), 1, 16);
 
   const isDiminishedDegree = (degree: number): boolean => {
     const chordRoot = scaleNotes[degree];
@@ -425,18 +427,22 @@ function generateDiatonicChordProgression(
     return thirdDistance === 3 && fifthDistance === 6;
   };
 
-  while (chosenDegrees.length < 4 && availableDegrees.length > 0) {
+  while (chosenDegrees.length < normalizedLength) {
     const includeDiminished = roll(probabilities.diminished);
+    const sourcePool = availableDegrees.length > 0 ? availableDegrees : [0, 1, 2, 3, 4, 5, 6];
     const selectionPool = includeDiminished
-      ? availableDegrees
-      : availableDegrees.filter((degree) => !isDiminishedDegree(degree));
-    const effectivePool = selectionPool.length > 0 ? selectionPool : availableDegrees;
+      ? sourcePool
+      : sourcePool.filter((degree) => !isDiminishedDegree(degree));
+    const effectivePool = selectionPool.length > 0 ? selectionPool : sourcePool;
 
     const randomIndex = Math.floor(Math.random() * effectivePool.length);
     const degree = effectivePool[randomIndex];
-    const availableDegreeIndex = availableDegrees.indexOf(degree);
-    if (availableDegreeIndex < 0) continue;
-    availableDegrees.splice(availableDegreeIndex, 1);
+    if (availableDegrees.length > 0) {
+      const availableDegreeIndex = availableDegrees.indexOf(degree);
+      if (availableDegreeIndex >= 0) {
+        availableDegrees.splice(availableDegreeIndex, 1);
+      }
+    }
     chosenDegrees.push(degree);
   }
 
@@ -537,6 +543,7 @@ export default function Home() {
     parallel: 2.0,
     diminished: 2.0,
   });
+  const [generatorLength, setGeneratorLength] = useState(4);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -701,7 +708,9 @@ export default function Home() {
   };
 
   const handleGenerateProgression = () => {
-    setProgression(`Chords: ${generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities)}`);
+    setProgression(
+      `Chords: ${generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities, generatorLength)}`,
+    );
     flashProgressionInput();
     setError("");
   };
@@ -935,10 +944,21 @@ export default function Home() {
                   className={`${styles.generateButton} ${styles.convertButton}`}
                   onClick={handleConvertFromRoman}
                 >
-                  Convert from Roman
+                  Roman to Chords
                 </button>
               </div>
               <div className={styles.knobRowGenerator}>
+                <Knob
+                  id="generator-length"
+                  label="length"
+                  min={1}
+                  max={16}
+                  step={1}
+                  value={generatorLength}
+                  defaultValue={4}
+                  onChange={(next) => setGeneratorLength(next)}
+                  formatValue={(next) => next.toFixed(0)}
+                />
                 <Knob
                   id="generator-third"
                   label="3rd"
