@@ -66,6 +66,7 @@ type GeneratorProbabilities = {
   suspended: number;
   parallel: number;
   diminished: number;
+  inversion: number;
 };
 
 type KnobProps = {
@@ -505,12 +506,29 @@ function generateDiatonicChordProgression(
     return chordSymbol;
   };
 
+  const maybeApplyRandomInversion = (chordSymbol: string): string => {
+    if (!roll(probabilities.inversion)) return chordSymbol;
+
+    const chord = Chord.get(chordSymbol);
+    if (!chord || chord.empty || chord.notes.length < 2) return chordSymbol;
+
+    const inversionCandidates = chord.notes
+      .slice(1)
+      .map((pitchClass) => Note.simplify(pitchClass) || pitchClass);
+    if (inversionCandidates.length === 0) return chordSymbol;
+
+    const randomInversionIndex = Math.floor(Math.random() * inversionCandidates.length);
+    const bassNote = inversionCandidates[randomInversionIndex];
+    return `${chordSymbol}/${bassNote}`;
+  };
+
   const degreeToChordSymbol = new Map<number, string>();
   const chordSymbols = chosenDegrees.map((degree) => {
     if (!degreeToChordSymbol.has(degree)) {
       degreeToChordSymbol.set(degree, buildChordSymbolForDegree(degree));
     }
-    const chordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
+    const baseChordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
+    const chordSymbol = maybeApplyRandomInversion(baseChordSymbol);
 
     const useRandomDuration = Math.random() < normalizedLengthVariation / 100;
     if (!useRandomDuration) {
@@ -579,6 +597,7 @@ export default function Home() {
     suspended: 2.0,
     parallel: 2.0,
     diminished: 2.0,
+    inversion: 2.0,
   });
   const [generatorLength, setGeneratorLength] = useState(4);
   const [generatorLengthVariation, setGeneratorLengthVariation] = useState(0);
@@ -1036,6 +1055,17 @@ export default function Home() {
                   value={generatorProbabilities.parallel}
                   defaultValue={1}
                   onChange={(next) => updateGeneratorProbability("parallel", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+                <Knob
+                  id="generator-inversion"
+                  label="inv"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.inversion}
+                  defaultValue={2}
+                  onChange={(next) => updateGeneratorProbability("inversion", next)}
                   formatValue={(next) => next.toFixed(1)}
                 />
               </div>
