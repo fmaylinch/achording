@@ -85,6 +85,13 @@ function parseEventToken(token: string, defaultBeats: number): SequenceEvent | n
   return { durationBeats, notes };
 }
 
+function parseSequenceEvents(progression: string, defaultBeats: number): SequenceEvent[] {
+  return progression
+    .split(",")
+    .map((item) => parseEventToken(item, defaultBeats))
+    .filter((item): item is SequenceEvent => Boolean(item));
+}
+
 export default function Home() {
   const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
@@ -108,9 +115,20 @@ export default function Home() {
   const [error, setError] = useState("");
   const synthsRef = useRef<Tone.PolySynth[]>([]);
   const filterRef = useRef<Tone.Filter | null>(null);
+  const activeEventsRef = useRef<SequenceEvent[]>([]);
+  const pendingEventsRef = useRef<SequenceEvent[] | null>(null);
+  const eventIndexRef = useRef(0);
+  const secondsPerBeatRef = useRef(0.5);
+  const playbackTimerRef = useRef<number | null>(null);
+  const playbackActiveRef = useRef(false);
 
   useEffect(() => {
     return () => {
+      playbackActiveRef.current = false;
+      if (playbackTimerRef.current !== null) {
+        window.clearTimeout(playbackTimerRef.current);
+        playbackTimerRef.current = null;
+      }
       synthsRef.current.forEach((synth) => synth.dispose());
       synthsRef.current = [];
       filterRef.current?.dispose();
@@ -209,11 +227,15 @@ export default function Home() {
   };
 
   const stopPlayback = () => {
-    Tone.Transport.stop();
-    Tone.Transport.cancel(0);
-    Tone.Transport.position = 0;
-    Tone.Transport.loop = false;
+    playbackActiveRef.current = false;
+    if (playbackTimerRef.current !== null) {
+      window.clearTimeout(playbackTimerRef.current);
+      playbackTimerRef.current = null;
+    }
     synthsRef.current.forEach((synth) => synth.releaseAll());
+    activeEventsRef.current = [];
+    pendingEventsRef.current = null;
+    eventIndexRef.current = 0;
     setIsPlaying(false);
   };
 
@@ -234,10 +256,7 @@ export default function Home() {
       return;
     }
 
-    const events = progression
-      .split(",")
-      .map((item) => parseEventToken(item, defaultBeats))
-      .filter((item): item is SequenceEvent => Boolean(item));
+    const events = parseSequenceEvents(progression, defaultBeats);
 
     if (events.length === 0) {
       setError("Use tokens like Cmaj7@3*2, R*1, Dm7, G7*0.5.");
@@ -246,48 +265,100 @@ export default function Home() {
 
     setError("");
     await Tone.start();
-    const synths = getSynths();
-    const secondsPerBeat = 60 / bpm;
-    let cursorSeconds = 0;
+    getSynths();
+    secondsPerBeatRef.current = 60 / bpm;
+    activeEventsRef.current = events;
+    pendingEventsRef.current = null;
+    eventIndexRef.current = 0;
+    playbackActiveRef.current = true;
 
-    Tone.Transport.stop();
-    Tone.Transport.cancel(0);
-    Tone.Transport.position = 0;
-    Tone.Transport.bpm.value = bpm;
+    const scheduleNextStep = (delayMs: number) => {
+      playbackTimerRef.current = window.setTimeout(() => {
+        if (!playbackActiveRef.current) return;
 
-    events.forEach((event) => {
-      const eventDurationSeconds = event.durationBeats * secondsPerBeat;
+        const currentEvents = activeEventsRef.current;
+        if (currentEvents.length === 0) return;
+
+        const currentIndex = eventIndexRef.current;
+        const event = currentEvents[currentIndex];
+        const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
+
+        if (event.notes) {
+          const notes = event.notes;
+          const startTime = Tone.now() + 0.01;
+          synthsRef.current.forEach((synth) => {
+            synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, startTime);
+          });
+        }
+
+        const isLastEvent = currentIndex >= currentEvents.length - 1;
+        if (isLastEvent) {
+          if (pendingEventsRef.current && pendingEventsRef.current.length > 0) {
+            activeEventsRef.current = pendingEventsRef.current;
+            pendingEventsRef.current = null;
+            setError("");
+          }
+          eventIndexRef.current = 0;
+        } else {
+          eventIndexRef.current = currentIndex + 1;
+        }
+
+        scheduleNextStep(eventDurationSeconds * 1000);
+      }, delayMs);
+    };
+
+    const playStep = () => {
+      const currentEvents = activeEventsRef.current;
+      if (currentEvents.length === 0) return;
+
+      const currentIndex = eventIndexRef.current;
+      const event = currentEvents[currentIndex];
+      const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
+
       if (event.notes) {
         const notes = event.notes;
-        Tone.Transport.schedule((time) => {
-          synths.forEach((synth) => {
-            synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, time);
-          });
-        }, cursorSeconds);
+        const startTime = Tone.now() + 0.01;
+        synthsRef.current.forEach((synth) => {
+          synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, startTime);
+        });
       }
-      cursorSeconds += eventDurationSeconds;
-    });
 
-    if (cursorSeconds <= 0) {
-      setError("Sequence length must be greater than 0 beats.");
-      return;
-    }
+      const isLastEvent = currentIndex >= currentEvents.length - 1;
+      if (isLastEvent) {
+        if (pendingEventsRef.current && pendingEventsRef.current.length > 0) {
+          activeEventsRef.current = pendingEventsRef.current;
+          pendingEventsRef.current = null;
+          setError("");
+        }
+        eventIndexRef.current = 0;
+      } else {
+        eventIndexRef.current = currentIndex + 1;
+      }
 
-    Tone.Transport.loopStart = 0;
-    Tone.Transport.loopEnd = cursorSeconds;
-    Tone.Transport.loop = true;
-    Tone.Transport.start("+0.05");
+      scheduleNextStep(eventDurationSeconds * 1000);
+    };
+
+    playStep();
     setIsPlaying(true);
   };
 
   useEffect(() => {
-    return () => {
-      Tone.Transport.stop();
-      Tone.Transport.cancel(0);
-      Tone.Transport.position = 0;
-      Tone.Transport.loop = false;
-    };
-  }, []);
+    if (!isPlaying) return;
+
+    const defaultBeats = Number.parseFloat(beatsInput);
+    if (!Number.isFinite(defaultBeats) || defaultBeats <= 0) {
+      pendingEventsRef.current = null;
+      return;
+    }
+
+    const events = parseSequenceEvents(progression, defaultBeats);
+    if (events.length === 0) {
+      pendingEventsRef.current = null;
+      return;
+    }
+
+    pendingEventsRef.current = events;
+  }, [isPlaying, progression, beatsInput]);
 
   return (
     <div className={styles.page}>
