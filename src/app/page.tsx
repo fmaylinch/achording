@@ -373,6 +373,15 @@ export default function Home() {
     filterRef.current.Q.rampTo(filter.q, 0.05);
   }, [isPlaying, filter]);
 
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    const bpm = Number.parseFloat(bpmInput);
+    if (!Number.isFinite(bpm) || bpm <= 0) return;
+
+    secondsPerBeatRef.current = 60 / bpm;
+  }, [isPlaying, bpmInput]);
+
   const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
     setEnvelope((prev) => ({ ...prev, [key]: value }));
   };
@@ -444,7 +453,8 @@ export default function Home() {
         const currentEvents = activeEventsRef.current;
         if (currentEvents.length === 0) return;
 
-        const currentIndex = eventIndexRef.current;
+        const currentIndex = Math.min(eventIndexRef.current, currentEvents.length - 1);
+        eventIndexRef.current = currentIndex;
         const event = currentEvents[currentIndex];
         const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
 
@@ -476,7 +486,8 @@ export default function Home() {
       const currentEvents = activeEventsRef.current;
       if (currentEvents.length === 0) return;
 
-      const currentIndex = eventIndexRef.current;
+      const currentIndex = Math.min(eventIndexRef.current, currentEvents.length - 1);
+      eventIndexRef.current = currentIndex;
       const event = currentEvents[currentIndex];
       const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
 
@@ -522,7 +533,9 @@ export default function Home() {
       return;
     }
 
-    pendingEventsRef.current = events;
+    activeEventsRef.current = events;
+    pendingEventsRef.current = null;
+    eventIndexRef.current = Math.min(eventIndexRef.current, events.length - 1);
   }, [isPlaying, progression, beatsInput]);
 
   return (
