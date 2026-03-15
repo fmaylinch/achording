@@ -206,11 +206,20 @@ function Knob({
 function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
   const symbol = chordSymbol.trim();
   if (!symbol || !Number.isFinite(baseOctave)) return [];
+
+  let pitchClasses: string[];
   const chord = Chord.get(symbol);
-  if (!chord || chord.empty || chord.notes.length === 0) return [];
+  if (!chord || chord.empty || chord.notes.length === 0) {
+    // Fall back to individual note sequence notation (e.g. "CEG", "C#EbG")
+    if (!/^([A-G][#b]?)+$/.test(symbol)) return [];
+    pitchClasses = symbol.match(/[A-G][#b]?/g) ?? [];
+    if (pitchClasses.length === 0) return [];
+  } else {
+    pitchClasses = chord.notes;
+  }
 
   let previousMidi = -Infinity;
-  return chord.notes.map((pitchClass) => {
+  return pitchClasses.map((pitchClass) => {
     const simplifiedPitch = Note.simplify(pitchClass) || pitchClass;
     let octave = baseOctave;
     let note = `${simplifiedPitch}${octave}`;
@@ -851,7 +860,7 @@ export default function Home() {
             className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
             value={progression}
             onChange={(e) => setProgression(e.target.value)}
-            placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
+            placeholder="Cmaj7@3*2, R*1, CEG@3, G7*0.5, Cmaj7"
             aria-label="Chords progression"
           />
           <p className={styles.hint}>
