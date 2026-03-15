@@ -228,11 +228,9 @@ function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
 }
 
 function toPlayableNotes(noteSymbol: string, baseOctave: number): string[] {
-  const compactSymbol = noteSymbol.replace(/\s+/g, "");
-  if (!compactSymbol || !Number.isFinite(baseOctave)) return [];
-
-  const noteParts = compactSymbol.match(/[A-Ga-g](?:#|b)?/g);
-  if (!noteParts || noteParts.join("") !== compactSymbol) return [];
+  if (!Number.isFinite(baseOctave)) return [];
+  const noteParts = extractCompactNoteParts(noteSymbol);
+  if (!noteParts) return [];
 
   let previousMidi = -Infinity;
   return noteParts.map((notePart) => {
@@ -262,6 +260,74 @@ function parseInputNotation(progression: string): { notation: InputNotation; con
     notation: notationMatch[1].toLowerCase() as InputNotation,
     content: notationMatch[2],
   };
+}
+
+function extractCompactNoteParts(symbol: string): string[] | null {
+  const compactSymbol = symbol.replace(/\s+/g, "");
+  if (!compactSymbol) return null;
+
+  const noteParts = compactSymbol.match(/[A-Ga-g](?:#|b)?/g);
+  if (!noteParts || noteParts.join("") !== compactSymbol) return null;
+  return noteParts;
+}
+
+function convertProgressionNotation(progression: string): string | null {
+  const { notation, content } = parseInputNotation(progression);
+  const targetNotation: InputNotation = notation === "notes" ? "chords" : "notes";
+  const targetPrefix = targetNotation === "chords" ? "Chords" : "Notes";
+  const tokens = content.split(",");
+  const convertedTokens: string[] = [];
+
+  for (const token of tokens) {
+    const trimmedToken = token.trim();
+    if (!trimmedToken) continue;
+
+    const eventMatch = /^(.*?)(?:\*(\d*\.?\d+))?$/.exec(trimmedToken);
+    if (!eventMatch) return null;
+
+    const eventSymbol = eventMatch[1].trim();
+    const beatsSuffix = eventMatch[2] ? `*${eventMatch[2]}` : "";
+    if (!eventSymbol) return null;
+
+    const directiveMatch = /^@([+-]?\d+)$/.exec(eventSymbol);
+    if (directiveMatch) {
+      convertedTokens.push(eventSymbol + beatsSuffix);
+      continue;
+    }
+
+    if (/^(r|rest)$/i.test(eventSymbol)) {
+      convertedTokens.push(`R${beatsSuffix}`);
+      continue;
+    }
+
+    const symbolMatch = /^(.*?)(?:@([+-]?\d+))?$/.exec(eventSymbol);
+    if (!symbolMatch) return null;
+
+    const symbol = symbolMatch[1].trim();
+    const octaveSuffix = symbolMatch[2] ? `@${symbolMatch[2]}` : "";
+    if (!symbol) return null;
+
+    if (notation === "chords") {
+      const chord = Chord.get(symbol);
+      if (!chord || chord.empty || chord.notes.length === 0) return null;
+      const convertedSymbol = chord.notes.map((pitchClass) => Note.simplify(pitchClass) || pitchClass).join("");
+      convertedTokens.push(`${convertedSymbol}${octaveSuffix}${beatsSuffix}`);
+      continue;
+    }
+
+    const noteParts = extractCompactNoteParts(symbol);
+    if (!noteParts) return null;
+
+    const notePitchClasses = noteParts.map((notePart) => {
+      const pitchClass = Note.pitchClass(notePart);
+      return Note.simplify(pitchClass) || pitchClass;
+    });
+    const detectedChords = Chord.detect(notePitchClasses);
+    if (detectedChords.length === 0) return null;
+    convertedTokens.push(`${detectedChords[0]}${octaveSuffix}${beatsSuffix}`);
+  }
+
+  return `${targetPrefix}: ${convertedTokens.join(", ")}`;
 }
 
 function resolveOctaveSpec(currentOctave: number, octaveSpec: string): number | null {
@@ -629,6 +695,18 @@ export default function Home() {
     setError("");
   };
 
+  const handleToggleNotation = () => {
+    const converted = convertProgressionNotation(progression);
+    if (!converted) {
+      setError("Cannot convert progression. Check tokens and notation prefix.");
+      return;
+    }
+
+    setProgression(converted);
+    flashProgressionInput();
+    setError("");
+  };
+
   const stopPlayback = () => {
     playbackActiveRef.current = false;
     if (playbackTimerRef.current !== null) {
@@ -767,6 +845,9 @@ export default function Home() {
     eventIndexRef.current = Math.min(eventIndexRef.current, events.length - 1);
   }, [isPlaying, progression, beatsInput]);
 
+  const currentNotation = parseInputNotation(progression).notation;
+  const convertNotationLabel = currentNotation === "notes" ? "To Chords" : "To Notes";
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -889,20 +970,27 @@ export default function Home() {
               </button>
             </div>
           </details>
-          <input
-            id="chords"
-            className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
-            value={progression}
-            onChange={(e) => setProgression(e.target.value)}
-            placeholder="Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG"
-            aria-label="Chords progression"
-          />
+          <div className={styles.progressionInputRow}>
+            <input
+              id="chords"
+              className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
+              value={progression}
+              onChange={(e) => setProgression(e.target.value)}
+              placeholder="Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG"
+              aria-label="Chords progression"
+            />
+            <button
+              type="button"
+              className={`${styles.generateButton} ${styles.progressionConvertButton}`}
+              onClick={handleToggleNotation}
+            >
+              {convertNotationLabel}
+            </button>
+          </div>
           <p className={styles.hint}>
-            Default notation is notes: <code>CEG, DFA</code>. Prefix with <code>Chords:</code> for chord symbols like{" "}
-            <a href="https://tonaljs.github.io/tonal/docs/groups/chords" target="_blank" rel="noopener noreferrer">
-              Cmaj7, Dm
-            </a>
-            . Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
+            Explicit notes like <code>CEGB</code> or chords like{" "}
+            <a href="https://tonaljs.github.io/tonal/docs/groups/chords" target="_blank" rel="noopener noreferrer">Cmaj7</a>.
+            Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
           </p>
           <button
             type="button"

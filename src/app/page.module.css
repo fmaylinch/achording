@@ -128,6 +128,20 @@
   align-items: flex-end;
 }
 
+.progressionInputRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.progressionConvertButton {
+  margin-top: 0;
+  min-width: 110px;
+  height: 42px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .convertButton {
   margin-top: 0;
   min-width: 170px;
@@ -332,6 +346,15 @@
   .inlineActionRow {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .progressionInputRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .progressionConvertButton {
+    min-width: 0;
   }
 
   .convertButton {
