@@ -45,6 +45,7 @@ type KnobProps = {
   defaultValue: number;
   onChange: (value: number) => void;
   formatValue?: (value: number) => string;
+  dragSensitivity?: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -69,6 +70,7 @@ function Knob({
   defaultValue,
   onChange,
   formatValue,
+  dragSensitivity = 1,
 }: KnobProps) {
   const dragStateRef = useRef<{ startY: number; startValue: number } | null>(null);
   const ratio = (value - min) / (max - min);
@@ -134,7 +136,7 @@ function Knob({
           if (!dragState) return;
 
           const dragDistance = dragState.startY - e.clientY;
-          const dragScale = e.shiftKey ? 640 : 140;
+          const dragScale = (e.shiftKey ? 640 : 140) * dragSensitivity;
           const normalizedDelta = dragDistance / dragScale;
           const valueDelta = normalizedDelta * (max - min);
           const nextValue = clamp(quantize(dragState.startValue + valueDelta, min, step), min, max);
@@ -590,7 +592,7 @@ export default function Home() {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="beats">
-                Default Length (beats)
+                Default Chord Length (beats)
               </label>
               <input
                 id="beats"
@@ -655,6 +657,7 @@ export default function Home() {
                       step={1}
                       value={oscillator.detuneCents}
                       defaultValue={0}
+                      dragSensitivity={4}
                       onChange={(next) => updateOscillator(oscillator.id, "detuneCents", next)}
                       formatValue={(next) => `${next} ct`}
                     />
