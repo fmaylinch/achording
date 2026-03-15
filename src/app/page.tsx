@@ -210,11 +210,11 @@ function Knob({
 function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
   const symbol = chordSymbol.trim();
   if (!symbol || !Number.isFinite(baseOctave)) return [];
-  const chord = Chord.get(symbol);
-  if (!chord || chord.empty || chord.notes.length === 0) return [];
+  const chordPitchClasses = getChordPitchClasses(symbol);
+  if (!chordPitchClasses || chordPitchClasses.length === 0) return [];
 
   let previousMidi = -Infinity;
-  return chord.notes.map((pitchClass) => {
+  return chordPitchClasses.map((pitchClass) => {
     const simplifiedPitch = Note.simplify(pitchClass) || pitchClass;
     let octave = baseOctave;
     let note = `${simplifiedPitch}${octave}`;
@@ -227,6 +227,36 @@ function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
     previousMidi = midi;
     return note;
   });
+}
+
+function getChordPitchClasses(symbol: string): string[] | null {
+  const trimmed = symbol.trim();
+  if (!trimmed) return null;
+
+  const parts = trimmed.split("/");
+  if (parts.length > 2) return null;
+
+  const baseSymbol = parts[0]?.trim() ?? "";
+  if (!baseSymbol) return null;
+
+  const chord = Chord.get(baseSymbol);
+  if (!chord || chord.empty || chord.notes.length === 0) return null;
+
+  const basePitchClasses = chord.notes.map((pitchClass) => Note.simplify(pitchClass) || pitchClass);
+  if (parts.length === 1) return basePitchClasses;
+
+  const rawBass = parts[1]?.trim() ?? "";
+  const bassPitchClass = Note.pitchClass(rawBass);
+  if (!bassPitchClass) return null;
+  const simplifiedBass = Note.simplify(bassPitchClass) || bassPitchClass;
+
+  const bassChroma = Note.chroma(simplifiedBass);
+  if (bassChroma === null) return null;
+
+  const inversionIndex = basePitchClasses.findIndex((pitchClass) => Note.chroma(pitchClass) === bassChroma);
+  if (inversionIndex < 0) return null;
+
+  return [...basePitchClasses.slice(inversionIndex), ...basePitchClasses.slice(0, inversionIndex)];
 }
 
 function toPlayableNotes(noteSymbol: string, baseOctave: number): string[] {
@@ -310,9 +340,9 @@ function convertProgressionNotation(progression: string): string | null {
     if (!symbol) return null;
 
     if (notation === "chords") {
-      const chord = Chord.get(symbol);
-      if (!chord || chord.empty || chord.notes.length === 0) return null;
-      const convertedSymbol = chord.notes.map((pitchClass) => Note.simplify(pitchClass) || pitchClass).join("");
+      const chordPitchClasses = getChordPitchClasses(symbol);
+      if (!chordPitchClasses || chordPitchClasses.length === 0) return null;
+      const convertedSymbol = chordPitchClasses.join("");
       convertedTokens.push(`${convertedSymbol}${octaveSuffix}${beatsSuffix}`);
       continue;
     }
