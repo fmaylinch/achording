@@ -10,6 +10,8 @@ type SequenceEvent = {
   notes: string[] | null;
 };
 
+type InputNotation = "chords" | "notes";
+
 const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 type OscillatorType = (typeof oscillatorTypes)[number];
 const filterTypes = ["lowpass", "highpass", "bandpass", "notch"] as const;
@@ -225,6 +227,43 @@ function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
   });
 }
 
+function toPlayableNotes(noteSymbol: string, baseOctave: number): string[] {
+  const compactSymbol = noteSymbol.replace(/\s+/g, "");
+  if (!compactSymbol || !Number.isFinite(baseOctave)) return [];
+
+  const noteParts = compactSymbol.match(/[A-Ga-g](?:#|b)?/g);
+  if (!noteParts || noteParts.join("") !== compactSymbol) return [];
+
+  let previousMidi = -Infinity;
+  return noteParts.map((notePart) => {
+    const pitchClass = Note.pitchClass(notePart);
+    const simplifiedPitch = Note.simplify(pitchClass) || pitchClass;
+    let octave = baseOctave;
+    let note = `${simplifiedPitch}${octave}`;
+    let midi = Tone.Frequency(note).toMidi();
+    while (midi <= previousMidi) {
+      octave += 1;
+      note = `${simplifiedPitch}${octave}`;
+      midi = Tone.Frequency(note).toMidi();
+    }
+    previousMidi = midi;
+    return note;
+  });
+}
+
+function parseInputNotation(progression: string): { notation: InputNotation; content: string } {
+  const trimmed = progression.trim();
+  const notationMatch = /^(chords|notes)\s*:\s*(.*)$/i.exec(trimmed);
+  if (!notationMatch) {
+    return { notation: "notes", content: progression };
+  }
+
+  return {
+    notation: notationMatch[1].toLowerCase() as InputNotation,
+    content: notationMatch[2],
+  };
+}
+
 function resolveOctaveSpec(currentOctave: number, octaveSpec: string): number | null {
   const trimmed = octaveSpec.trim();
   if (!trimmed) return null;
@@ -241,7 +280,8 @@ function resolveOctaveSpec(currentOctave: number, octaveSpec: string): number | 
 function parseSequenceEvents(progression: string, defaultBeats: number): SequenceEvent[] {
   let currentOctave = 4;
   const events: SequenceEvent[] = [];
-  const tokens = progression.split(",");
+  const { notation, content } = parseInputNotation(progression);
+  const tokens = content.split(",");
 
   for (const token of tokens) {
     const trimmedToken = token.trim();
@@ -280,7 +320,10 @@ function parseSequenceEvents(progression: string, defaultBeats: number): Sequenc
       chordOctave = resolvedChordOctave as number;
     }
 
-    const notes = toPlayableChord(chordSymbol, chordOctave);
+    const notes =
+      notation === "chords"
+        ? toPlayableChord(chordSymbol, chordOctave)
+        : toPlayableNotes(chordSymbol, chordOctave);
     if (notes.length === 0) return [];
 
     events.push({ durationBeats, notes });
@@ -393,7 +436,7 @@ function convertRomanNumeralsToChordSymbols(
 }
 
 export default function Home() {
-  const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
+  const [progression, setProgression] = useState("Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
@@ -569,7 +612,7 @@ export default function Home() {
   };
 
   const handleGenerateProgression = () => {
-    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities));
+    setProgression(`Chords: ${generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities)}`);
     flashProgressionInput();
     setError("");
   };
@@ -581,7 +624,7 @@ export default function Home() {
       return;
     }
 
-    setProgression(converted);
+    setProgression(`Chords: ${converted}`);
     flashProgressionInput();
     setError("");
   };
@@ -619,7 +662,7 @@ export default function Home() {
     const events = parseSequenceEvents(progression, defaultBeats);
 
     if (events.length === 0) {
-      setError("Use tokens like Cmaj7@3*2, R*1, Dm7, G7*0.5.");
+      setError("Use Notes: CEG@3*2, R*1, DFA or Chords: Cmaj7@3*2, R*1, Dm7.");
       return;
     }
 
@@ -851,18 +894,15 @@ export default function Home() {
             className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
             value={progression}
             onChange={(e) => setProgression(e.target.value)}
-            placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
+            placeholder="Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG"
             aria-label="Chords progression"
           />
           <p className={styles.hint}>
-              Type{" "}
-              <a
-                  href="https://tonaljs.github.io/tonal/docs/groups/chords"
-                  target="_blank"
-                  rel="noopener noreferrer"
-              >
-                Tonal chord symbols
-              </a>. Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
+            Default notation is notes: <code>CEG, DFA</code>. Prefix with <code>Chords:</code> for chord symbols like{" "}
+            <a href="https://tonaljs.github.io/tonal/docs/groups/chords" target="_blank" rel="noopener noreferrer">
+              Cmaj7, Dm
+            </a>
+            . Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
           </p>
           <button
             type="button"
