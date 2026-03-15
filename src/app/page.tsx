@@ -430,10 +430,13 @@ function generateDiatonicChordProgression(
   while (chosenDegrees.length < normalizedLength) {
     const includeDiminished = roll(probabilities.diminished);
     const sourcePool = availableDegrees.length > 0 ? availableDegrees : [0, 1, 2, 3, 4, 5, 6];
+    const nonDiminishedFallbackPool = [0, 1, 2, 3, 4, 5, 6].filter(
+      (degree) => !isDiminishedDegree(degree),
+    );
     const selectionPool = includeDiminished
       ? sourcePool
       : sourcePool.filter((degree) => !isDiminishedDegree(degree));
-    const effectivePool = selectionPool.length > 0 ? selectionPool : sourcePool;
+    const effectivePool = selectionPool.length > 0 ? selectionPool : nonDiminishedFallbackPool;
 
     const randomIndex = Math.floor(Math.random() * effectivePool.length);
     const degree = effectivePool[randomIndex];
