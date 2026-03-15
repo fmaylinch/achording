@@ -92,6 +92,34 @@
   flex: 1;
 }
 
+.envelopePanel {
+  border: 1px solid #ddc8b0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff9f2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #4a2a0d;
+}
+
+.sliderLabel {
+  color: #5a3410;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.slider {
+  width: 100%;
+  accent-color: #7c4a14;
+}
+
 .playButton {
   margin-top: 6px;
   border: 0;
@@ -167,6 +195,23 @@
     border-color: #6a4a2f;
     background: #2f2115;
     color: #fae7ce;
+  }
+
+  .envelopePanel {
+    border-color: #6a4a2f;
+    background: #2a1d12;
+  }
+
+  .sectionTitle {
+    color: #e8c59d;
+  }
+
+  .sliderLabel {
+    color: #ddb88f;
+  }
+
+  .slider {
+    accent-color: #f0c48f;
   }
 
   .playButton {

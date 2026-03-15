@@ -10,6 +10,16 @@ type SequenceEvent = {
   notes: string[] | null;
 };
 
+const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
+type OscillatorType = (typeof oscillatorTypes)[number];
+
+type EnvelopeSettings = {
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
+};
+
 function toPlayableChord(chordSymbol: string): string[] {
   const trimmed = chordSymbol.trim();
   const match = /^(.*?)(?:@(-?\d+))?$/.exec(trimmed);
@@ -64,6 +74,13 @@ export default function Home() {
   const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
+  const [oscillatorType, setOscillatorType] = useState<OscillatorType>("triangle");
+  const [envelope, setEnvelope] = useState<EnvelopeSettings>({
+    attack: 0.005,
+    decay: 0.15,
+    sustain: 0.25,
+    release: 1.2,
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState("");
   const synthRef = useRef<Tone.PolySynth | null>(null);
@@ -71,17 +88,20 @@ export default function Home() {
   const getSynth = () => {
     if (!synthRef.current) {
       synthRef.current = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: "triangle" },
-        envelope: {
-          attack: 0.005,
-          decay: 0.15,
-          sustain: 0.25,
-          release: 1.2,
-        },
+        oscillator: { type: oscillatorType },
+        envelope,
       }).toDestination();
       synthRef.current.volume.value = -8;
     }
+    synthRef.current.set({
+      oscillator: { type: oscillatorType },
+      envelope,
+    });
     return synthRef.current;
+  };
+
+  const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
+    setEnvelope((prev) => ({ ...prev, [key]: value }));
   };
 
   const handlePlay = async () => {
@@ -195,6 +215,86 @@ export default function Home() {
                 onChange={(e) => setBeatsInput(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="oscillatorType">
+                Oscillator
+              </label>
+              <select
+                id="oscillatorType"
+                className={styles.input}
+                value={oscillatorType}
+                onChange={(e) => setOscillatorType(e.target.value as OscillatorType)}
+              >
+                {oscillatorTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={styles.envelopePanel}>
+            <p className={styles.sectionTitle}>ADSR Envelope</p>
+
+            <label className={styles.sliderLabel} htmlFor="attack">
+              Attack: {envelope.attack.toFixed(3)}s
+            </label>
+            <input
+              id="attack"
+              type="range"
+              min="0"
+              max="2"
+              step="0.005"
+              className={styles.slider}
+              value={envelope.attack}
+              onChange={(e) => updateEnvelope("attack", Number.parseFloat(e.target.value))}
+            />
+
+            <label className={styles.sliderLabel} htmlFor="decay">
+              Decay: {envelope.decay.toFixed(3)}s
+            </label>
+            <input
+              id="decay"
+              type="range"
+              min="0"
+              max="2"
+              step="0.005"
+              className={styles.slider}
+              value={envelope.decay}
+              onChange={(e) => updateEnvelope("decay", Number.parseFloat(e.target.value))}
+            />
+
+            <label className={styles.sliderLabel} htmlFor="sustain">
+              Sustain: {envelope.sustain.toFixed(3)}
+            </label>
+            <input
+              id="sustain"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              className={styles.slider}
+              value={envelope.sustain}
+              onChange={(e) => updateEnvelope("sustain", Number.parseFloat(e.target.value))}
+            />
+
+            <label className={styles.sliderLabel} htmlFor="release">
+              Release: {envelope.release.toFixed(3)}s
+            </label>
+            <input
+              id="release"
+              type="range"
+              min="0.05"
+              max="4"
+              step="0.01"
+              className={styles.slider}
+              value={envelope.release}
+              onChange={(e) => updateEnvelope("release", Number.parseFloat(e.target.value))}
+            />
           </div>
 
           <button
