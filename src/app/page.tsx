@@ -409,13 +409,16 @@ function generateDiatonicChordProgression(
   probabilities: GeneratorProbabilities,
   progressionLength: number,
   lengthVariationPercent: number,
+  chordVariationPercent: number,
 ): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
-  const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
+  const allDegrees = [0, 1, 2, 3, 4, 5, 6];
+  const usedDegrees: number[] = [];
   const chosenDegrees: number[] = [];
   const normalizedLength = clamp(Math.round(progressionLength), 1, 16);
   const normalizedLengthVariation = clamp(lengthVariationPercent, 0, 100);
+  const normalizedChordVariation = clamp(chordVariationPercent, 0, 100);
 
   const isDiminishedDegree = (degree: number): boolean => {
     const chordRoot = scaleNotes[degree];
@@ -431,22 +434,29 @@ function generateDiatonicChordProgression(
 
   while (chosenDegrees.length < normalizedLength) {
     const includeDiminished = roll(probabilities.diminished);
-    const sourcePool = availableDegrees.length > 0 ? availableDegrees : [0, 1, 2, 3, 4, 5, 6];
-    const nonDiminishedFallbackPool = [0, 1, 2, 3, 4, 5, 6].filter(
+    const nonDiminishedPool = allDegrees.filter((degree) => !isDiminishedDegree(degree));
+    const allowedDegrees = includeDiminished ? allDegrees : nonDiminishedPool;
+    const usedAllowedDegrees = usedDegrees.filter((degree) => allowedDegrees.includes(degree));
+    const unusedAllowedDegrees = allowedDegrees.filter((degree) => !usedDegrees.includes(degree));
+    const shouldReuseUsedChord =
+      chosenDegrees.length > 0 && Math.random() < normalizedChordVariation / 100;
+
+    const sourcePool = shouldReuseUsedChord ? usedAllowedDegrees : unusedAllowedDegrees;
+    const fallbackPool = shouldReuseUsedChord ? unusedAllowedDegrees : usedAllowedDegrees;
+    const nonDiminishedFallbackPool = nonDiminishedPool.filter(
       (degree) => !isDiminishedDegree(degree),
     );
-    const selectionPool = includeDiminished
-      ? sourcePool
-      : sourcePool.filter((degree) => !isDiminishedDegree(degree));
-    const effectivePool = selectionPool.length > 0 ? selectionPool : nonDiminishedFallbackPool;
+    const effectivePool =
+      sourcePool.length > 0
+        ? sourcePool
+        : fallbackPool.length > 0
+          ? fallbackPool
+          : nonDiminishedFallbackPool;
 
     const randomIndex = Math.floor(Math.random() * effectivePool.length);
     const degree = effectivePool[randomIndex];
-    if (availableDegrees.length > 0) {
-      const availableDegreeIndex = availableDegrees.indexOf(degree);
-      if (availableDegreeIndex >= 0) {
-        availableDegrees.splice(availableDegreeIndex, 1);
-      }
+    if (!usedDegrees.includes(degree)) {
+      usedDegrees.push(degree);
     }
     chosenDegrees.push(degree);
   }
@@ -562,6 +572,7 @@ export default function Home() {
   });
   const [generatorLength, setGeneratorLength] = useState(4);
   const [generatorLengthVariation, setGeneratorLengthVariation] = useState(0);
+  const [generatorChordVariation, setGeneratorChordVariation] = useState(40);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -733,6 +744,7 @@ export default function Home() {
         generatorProbabilities,
         generatorLength,
         generatorLengthVariation,
+        generatorChordVariation,
       )}`,
     );
     flashProgressionInput();
@@ -995,6 +1007,30 @@ export default function Home() {
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
+                  id="generator-chord-variation"
+                  label="chord var"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={generatorChordVariation}
+                  defaultValue={40}
+                  onChange={(next) => setGeneratorChordVariation(next)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
+                />
+                <Knob
+                  id="generator-parallel"
+                  label="parallel"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.parallel}
+                  defaultValue={1}
+                  onChange={(next) => updateGeneratorProbability("parallel", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+              </div>
+              <div className={styles.knobRowGenerator}>
+                <Knob
                   id="generator-third"
                   label="3rd"
                   min={0}
@@ -1025,17 +1061,6 @@ export default function Home() {
                   value={generatorProbabilities.suspended}
                   defaultValue={1}
                   onChange={(next) => updateGeneratorProbability("suspended", next)}
-                  formatValue={(next) => next.toFixed(1)}
-                />
-                <Knob
-                  id="generator-parallel"
-                  label="parallel"
-                  min={0}
-                  max={10}
-                  step={0.1}
-                  value={generatorProbabilities.parallel}
-                  defaultValue={1}
-                  onChange={(next) => updateGeneratorProbability("parallel", next)}
                   formatValue={(next) => next.toFixed(1)}
                 />
                 <Knob
