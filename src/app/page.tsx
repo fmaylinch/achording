@@ -28,6 +28,15 @@ const modeSemitoneSteps: Record<ScaleMode, number[]> = {
   Mixolydian: [0, 2, 4, 5, 7, 9, 10],
   Locrian: [0, 1, 3, 5, 6, 8, 10],
 };
+const romanDegreeToIndex: Record<string, number> = {
+  I: 0,
+  II: 1,
+  III: 2,
+  IV: 3,
+  V: 4,
+  VI: 5,
+  VII: 6,
+};
 
 type EnvelopeSettings = {
   attack: number;
@@ -342,10 +351,52 @@ function generateDiatonicChordProgression(
   return chordSymbols.join(", ");
 }
 
+function convertRomanNumeralsToChordSymbols(
+  romanProgression: string,
+  root: ScaleRootNote,
+  mode: ScaleMode,
+): string | null {
+  const tokens = romanProgression
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const rootIndex = chromaticScale.indexOf(root);
+  const scaleSteps = modeSemitoneSteps[mode];
+  const chordSymbols: string[] = [];
+
+  for (const token of tokens) {
+    const match = /^([b#]*)([ivIV]+)\s*(dim|°|o)?$/.exec(token);
+    if (!match) return null;
+
+    const accidentalPart = match[1];
+    const numeralPart = match[2];
+    const diminishedPart = match[3];
+    const degreeIndex = romanDegreeToIndex[numeralPart.toUpperCase()];
+    if (degreeIndex === undefined) return null;
+
+    const accidentalOffset = accidentalPart.split("").reduce((sum, accidental) => {
+      if (accidental === "#") return sum + 1;
+      if (accidental === "b") return sum - 1;
+      return sum;
+    }, 0);
+
+    const noteIndex = (rootIndex + scaleSteps[degreeIndex] + accidentalOffset + 120) % 12;
+    const chordRoot = chromaticScale[noteIndex];
+    const isLowerCase = numeralPart === numeralPart.toLowerCase();
+    const suffix = diminishedPart ? "dim" : isLowerCase ? "m" : "";
+    chordSymbols.push(`${chordRoot}${suffix}`);
+  }
+
+  return chordSymbols.join(", ");
+}
+
 export default function Home() {
   const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
+  const [romanInput, setRomanInput] = useState("I, IV, V, vi");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
   const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
@@ -503,8 +554,7 @@ export default function Home() {
     setGeneratorProbabilities((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleGenerateProgression = () => {
-    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities));
+  const flashProgressionInput = () => {
     setIsProgressionFlashing(false);
     window.requestAnimationFrame(() => {
       setIsProgressionFlashing(true);
@@ -516,6 +566,23 @@ export default function Home() {
         progressionFlashTimerRef.current = null;
       }, 650);
     });
+  };
+
+  const handleGenerateProgression = () => {
+    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities));
+    flashProgressionInput();
+    setError("");
+  };
+
+  const handleConvertFromRoman = () => {
+    const converted = convertRomanNumeralsToChordSymbols(romanInput, scaleRoot, scaleMode);
+    if (!converted) {
+      setError("Use Roman numerals like I, IV, V, vi (optionally with b/# and dim).");
+      return;
+    }
+
+    setProgression(converted);
+    flashProgressionInput();
     setError("");
   };
 
@@ -662,65 +729,8 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Achording</h1>
-          <p>
-            Type{" "}
-            <a
-              href="https://tonaljs.github.io/tonal/docs/groups/chords"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Tonal chord symbols
-            </a>.
-          </p>
-          <p>Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.</p>
         </div>
-
         <div className={styles.form}>
-          <label className={styles.label} htmlFor="chords">
-            Chords
-          </label>
-          <input
-            id="chords"
-            className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
-            value={progression}
-            onChange={(e) => setProgression(e.target.value)}
-            placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
-          />
-          <p className={styles.hint}>
-            Format: comma-separated tokens. Examples: Cmaj7, @-1, Cmaj7@+1,
-            Cmaj7*2, Cmaj7@3*2, R*1.
-          </p>
-
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="bpm">
-                BPM
-              </label>
-              <input
-                id="bpm"
-                type="number"
-                min="1"
-                className={styles.input}
-                value={bpmInput}
-                onChange={(e) => setBpmInput(e.target.value)}
-              />
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="beats">
-                Default Chord Length (beats)
-              </label>
-              <input
-                id="beats"
-                type="number"
-                min="0.25"
-                step="0.25"
-                className={styles.input}
-                value={beatsInput}
-                onChange={(e) => setBeatsInput(e.target.value)}
-              />
-            </div>
-          </div>
-
           <details className={styles.collapsible}>
             <summary className={styles.collapsibleSummary}>Chord Generator</summary>
             <div className={styles.filterPanel}>
@@ -759,6 +769,27 @@ export default function Home() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className={styles.inlineActionRow}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="roman-input">
+                    Roman Numerals
+                  </label>
+                  <input
+                    id="roman-input"
+                    className={styles.input}
+                    value={romanInput}
+                    onChange={(e) => setRomanInput(e.target.value)}
+                    placeholder="I, IV, V, vi"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className={`${styles.generateButton} ${styles.convertButton}`}
+                  onClick={handleConvertFromRoman}
+                >
+                  Convert from Roman
+                </button>
               </div>
               <div className={styles.knobRowGenerator}>
                 <Knob
@@ -815,7 +846,24 @@ export default function Home() {
               </button>
             </div>
           </details>
-
+          <input
+            id="chords"
+            className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
+            value={progression}
+            onChange={(e) => setProgression(e.target.value)}
+            placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
+            aria-label="Chords progression"
+          />
+          <p className={styles.hint}>
+              Type{" "}
+              <a
+                  href="https://tonaljs.github.io/tonal/docs/groups/chords"
+                  target="_blank"
+                  rel="noopener noreferrer"
+              >
+                Tonal chord symbols
+              </a>. Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
+          </p>
           <button
             type="button"
             className={styles.playButton}
@@ -823,6 +871,36 @@ export default function Home() {
           >
             {isPlaying ? "Stop" : "Play"}
           </button>
+
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="bpm">
+                BPM
+              </label>
+              <input
+                id="bpm"
+                type="number"
+                min="1"
+                className={styles.input}
+                value={bpmInput}
+                onChange={(e) => setBpmInput(e.target.value)}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="beats">
+                Default Chord Length (beats)
+              </label>
+              <input
+                id="beats"
+                type="number"
+                min="0.25"
+                step="0.25"
+                className={styles.input}
+                value={beatsInput}
+                onChange={(e) => setBeatsInput(e.target.value)}
+              />
+            </div>
+          </div>
 
           <details className={styles.collapsible}>
             <summary className={styles.collapsibleSummary}>Oscillators + ADSR</summary>
