@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./page.module.css";
 import * as Tone from "tone";
 import { Chord, Note } from "@tonaljs/tonal";
@@ -118,7 +118,7 @@ export default function Home() {
     };
   }, []);
 
-  const getFilter = () => {
+  const getFilter = useCallback(() => {
     if (!filterRef.current) {
       filterRef.current = new Tone.Filter({
         type: filter.type,
@@ -134,9 +134,9 @@ export default function Home() {
     });
 
     return filterRef.current;
-  };
+  }, [filter]);
 
-  const getSynths = () => {
+  const getSynths = useCallback(() => {
     const filterNode = getFilter();
 
     if (synthsRef.current.length > oscillators.length) {
@@ -159,7 +159,36 @@ export default function Home() {
     });
 
     return synthsRef.current;
-  };
+  }, [envelope, getFilter, oscillators]);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    // Ensure current oscillator config is reflected in active synth nodes.
+    const synths = getSynths();
+    synths.forEach((synth, index) => {
+      const oscillator = oscillators[index];
+      if (!oscillator) return;
+
+      synth.set({
+        oscillator: { type: oscillator.type },
+        envelope,
+        detune: oscillator.detuneCents,
+      });
+      synth.volume.rampTo(oscillator.volumeDb, 0.05);
+    });
+  }, [getSynths, isPlaying, oscillators, envelope]);
+
+  useEffect(() => {
+    if (!isPlaying || !filterRef.current) return;
+
+    // Smooth live filter updates while audio is running.
+    if (filterRef.current.type !== filter.type) {
+      filterRef.current.type = filter.type;
+    }
+    filterRef.current.frequency.rampTo(filter.frequency, 0.05);
+    filterRef.current.Q.rampTo(filter.q, 0.05);
+  }, [isPlaying, filter]);
 
   const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
     setEnvelope((prev) => ({ ...prev, [key]: value }));
@@ -325,6 +354,14 @@ export default function Home() {
             </div>
           </div>
 
+          <button
+            type="button"
+            className={styles.playButton}
+            onClick={handleTogglePlay}
+          >
+            {isPlaying ? "Stop" : "Play"}
+          </button>
+
           <div className={styles.oscillatorGrid}>
             {oscillators.map((oscillator, index) => (
               <div key={oscillator.id} className={styles.oscillatorCard}>
@@ -486,14 +523,6 @@ export default function Home() {
               onChange={(e) => updateFilter("q", Number.parseFloat(e.target.value))}
             />
           </div>
-
-          <button
-            type="button"
-            className={styles.playButton}
-            onClick={handleTogglePlay}
-          >
-            {isPlaying ? "Stop" : "Play"}
-          </button>
 
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>
