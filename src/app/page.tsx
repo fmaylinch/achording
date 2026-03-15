@@ -469,9 +469,8 @@ function generateDiatonicChordProgression(
     const nonDiminishedPool = allDegrees.filter((degree) => !isDiminishedDegree(degree));
     const allowedDegrees = includeDiminished ? allDegrees : nonDiminishedPool;
     const unusedAllowedDegrees = allowedDegrees.filter((degree) => !usedDegrees.includes(degree));
-    const randomVariationRoll = Math.floor(Math.random() * 100);
     const shouldPickRandomChordNormally =
-      chosenDegrees.length === 0 || normalizedChordVariation > randomVariationRoll;
+      chosenDegrees.length === 0 || roll(normalizedChordVariation);
 
     const sourcePool = shouldPickRandomChordNormally ? unusedAllowedDegrees : usedDegrees;
     const fallbackPool = shouldPickRandomChordNormally ? usedDegrees : unusedAllowedDegrees;
@@ -561,7 +560,7 @@ function generateDiatonicChordProgression(
     const baseChordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
     const chordSymbol = maybeApplyRandomInversion(baseChordSymbol);
 
-    const useRandomDuration = Math.random() < normalizedLengthVariation / 100;
+    const useRandomDuration = roll(normalizedLengthVariation);
     if (!useRandomDuration) {
       return chordSymbol;
     }
@@ -781,6 +780,22 @@ export default function Home() {
 
   const updateGeneratorProbability = (key: keyof GeneratorProbabilities, value: number) => {
     setGeneratorProbabilities((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleRandomizeGeneratorKnobs = () => {
+    const randomPercent = () => Math.floor(Math.random() * 101);
+
+    setGeneratorProbabilities({
+      lengthVariation: randomPercent(),
+      chordVariation: randomPercent(),
+      rootModeChange: randomPercent(),
+      hasThird: randomPercent(),
+      seventh: randomPercent(),
+      suspended: randomPercent(),
+      parallel: randomPercent(),
+      diminished: randomPercent(),
+      inversion: randomPercent(),
+    });
   };
 
   const flashProgressionInput = () => {
@@ -1006,6 +1021,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Achording</h1>
+          <p className={styles.versionMeta}>v0.1.1 · Latest changes: button to randomize knobs</p>
         </div>
         <div className={styles.form}>
           <details className={styles.collapsible}>
@@ -1182,6 +1198,13 @@ export default function Home() {
                   formatValue={(next) => `${next.toFixed(0)}%`}
                 />
               </div>
+              <button
+                type="button"
+                className={`${styles.generateButton} ${styles.randomizeButton}`}
+                onClick={handleRandomizeGeneratorKnobs}
+              >
+                Randomize Knobs
+              </button>
               <button
                 type="button"
                 className={styles.generateButton}
