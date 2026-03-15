@@ -65,6 +65,7 @@ type GeneratorProbabilities = {
   seventh: number;
   suspended: number;
   parallel: number;
+  diminished: number;
 };
 
 type KnobProps = {
@@ -412,9 +413,30 @@ function generateDiatonicChordProgression(
   const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
   const chosenDegrees: number[] = [];
 
+  const isDiminishedDegree = (degree: number): boolean => {
+    const chordRoot = scaleNotes[degree];
+    const chordThird = scaleNotes[(degree + 2) % scaleNotes.length];
+    const chordFifth = scaleNotes[(degree + 4) % scaleNotes.length];
+    const chordRootIndex = chromaticScale.indexOf(chordRoot);
+    const thirdIndex = chromaticScale.indexOf(chordThird);
+    const fifthIndex = chromaticScale.indexOf(chordFifth);
+    const thirdDistance = (thirdIndex - chordRootIndex + 12) % 12;
+    const fifthDistance = (fifthIndex - chordRootIndex + 12) % 12;
+    return thirdDistance === 3 && fifthDistance === 6;
+  };
+
   while (chosenDegrees.length < 4 && availableDegrees.length > 0) {
-    const randomIndex = Math.floor(Math.random() * availableDegrees.length);
-    const [degree] = availableDegrees.splice(randomIndex, 1);
+    const includeDiminished = roll(probabilities.diminished);
+    const selectionPool = includeDiminished
+      ? availableDegrees
+      : availableDegrees.filter((degree) => !isDiminishedDegree(degree));
+    const effectivePool = selectionPool.length > 0 ? selectionPool : availableDegrees;
+
+    const randomIndex = Math.floor(Math.random() * effectivePool.length);
+    const degree = effectivePool[randomIndex];
+    const availableDegreeIndex = availableDegrees.indexOf(degree);
+    if (availableDegreeIndex < 0) continue;
+    availableDegrees.splice(availableDegreeIndex, 1);
     chosenDegrees.push(degree);
   }
 
@@ -510,9 +532,10 @@ export default function Home() {
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
   const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
     hasThird: 8.0,
-    seventh: 0.5,
-    suspended: 0.2,
-    parallel: 0.2,
+    seventh: 2.0,
+    suspended: 2.0,
+    parallel: 2.0,
+    diminished: 2.0,
   });
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
@@ -958,6 +981,17 @@ export default function Home() {
                   value={generatorProbabilities.parallel}
                   defaultValue={1}
                   onChange={(next) => updateGeneratorProbability("parallel", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+                <Knob
+                  id="generator-diminished"
+                  label="dim"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.diminished}
+                  defaultValue={2}
+                  onChange={(next) => updateGeneratorProbability("diminished", next)}
                   formatValue={(next) => next.toFixed(1)}
                 />
               </div>
