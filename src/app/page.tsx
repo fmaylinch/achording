@@ -179,8 +179,20 @@ export default function Home() {
     setFilter((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handlePlay = async () => {
-    if (isPlaying) return;
+  const stopPlayback = () => {
+    Tone.Transport.stop();
+    Tone.Transport.cancel(0);
+    Tone.Transport.position = 0;
+    Tone.Transport.loop = false;
+    synthsRef.current.forEach((synth) => synth.releaseAll());
+    setIsPlaying(false);
+  };
+
+  const handleTogglePlay = async () => {
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
 
     const bpm = Number.parseFloat(bpmInput);
     const defaultBeats = Number.parseFloat(beatsInput);
@@ -204,30 +216,49 @@ export default function Home() {
     }
 
     setError("");
-    setIsPlaying(true);
-
     await Tone.start();
     const synths = getSynths();
     const secondsPerBeat = 60 / bpm;
-    const startTime = Tone.now() + 0.05;
-    let cursorTime = startTime;
-    let totalDurationSeconds = 0;
+    let cursorSeconds = 0;
+
+    Tone.Transport.stop();
+    Tone.Transport.cancel(0);
+    Tone.Transport.position = 0;
+    Tone.Transport.bpm.value = bpm;
 
     events.forEach((event) => {
       const eventDurationSeconds = event.durationBeats * secondsPerBeat;
       if (event.notes) {
-        synths.forEach((synth) => {
-          synth.triggerAttackRelease(event.notes, eventDurationSeconds * 0.9, cursorTime);
-        });
+        const notes = event.notes;
+        Tone.Transport.schedule((time) => {
+          synths.forEach((synth) => {
+            synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, time);
+          });
+        }, cursorSeconds);
       }
-      cursorTime += eventDurationSeconds;
-      totalDurationSeconds += eventDurationSeconds;
+      cursorSeconds += eventDurationSeconds;
     });
 
-    window.setTimeout(() => {
-      setIsPlaying(false);
-    }, totalDurationSeconds * 1000 + 120);
+    if (cursorSeconds <= 0) {
+      setError("Sequence length must be greater than 0 beats.");
+      return;
+    }
+
+    Tone.Transport.loopStart = 0;
+    Tone.Transport.loopEnd = cursorSeconds;
+    Tone.Transport.loop = true;
+    Tone.Transport.start("+0.05");
+    setIsPlaying(true);
   };
+
+  useEffect(() => {
+    return () => {
+      Tone.Transport.stop();
+      Tone.Transport.cancel(0);
+      Tone.Transport.position = 0;
+      Tone.Transport.loop = false;
+    };
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -459,10 +490,9 @@ export default function Home() {
           <button
             type="button"
             className={styles.playButton}
-            onClick={handlePlay}
-            disabled={isPlaying}
+            onClick={handleTogglePlay}
           >
-            {isPlaying ? "Playing..." : "Play"}
+            {isPlaying ? "Stop" : "Play"}
           </button>
 
           {error ? <p className={styles.error}>{error}</p> : null}
