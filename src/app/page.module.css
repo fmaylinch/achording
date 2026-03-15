@@ -92,6 +92,22 @@
   flex: 1;
 }
 
+.oscillatorGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.oscillatorCard {
+  border: 1px solid #ddc8b0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff9f2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .envelopePanel {
   border: 1px solid #ddc8b0;
   border-radius: 12px;
@@ -154,6 +170,10 @@
   .row {
     flex-direction: column;
   }
+
+  .oscillatorGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -195,6 +215,11 @@
     border-color: #6a4a2f;
     background: #2f2115;
     color: #fae7ce;
+  }
+
+  .oscillatorCard {
+    border-color: #6a4a2f;
+    background: #2a1d12;
   }
 
   .envelopePanel {

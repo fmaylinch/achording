@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./page.module.css";
 import * as Tone from "tone";
 import { Chord, Note } from "@tonaljs/tonal";
@@ -18,6 +18,12 @@ type EnvelopeSettings = {
   decay: number;
   sustain: number;
   release: number;
+};
+
+type OscillatorSettings = {
+  id: string;
+  type: OscillatorType;
+  volumeDb: number;
 };
 
 function toPlayableChord(chordSymbol: string): string[] {
@@ -74,7 +80,10 @@ export default function Home() {
   const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
-  const [oscillatorType, setOscillatorType] = useState<OscillatorType>("triangle");
+  const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
+    { id: "osc-1", type: "triangle", volumeDb: -12 },
+    { id: "osc-2", type: "sine", volumeDb: -12 },
+  ]);
   const [envelope, setEnvelope] = useState<EnvelopeSettings>({
     attack: 0.005,
     decay: 0.15,
@@ -83,25 +92,47 @@ export default function Home() {
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [error, setError] = useState("");
-  const synthRef = useRef<Tone.PolySynth | null>(null);
+  const synthsRef = useRef<Tone.PolySynth[]>([]);
 
-  const getSynth = () => {
-    if (!synthRef.current) {
-      synthRef.current = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: oscillatorType },
-        envelope,
-      }).toDestination();
-      synthRef.current.volume.value = -8;
+  useEffect(() => {
+    return () => {
+      synthsRef.current.forEach((synth) => synth.dispose());
+      synthsRef.current = [];
+    };
+  }, []);
+
+  const getSynths = () => {
+    if (synthsRef.current.length > oscillators.length) {
+      synthsRef.current.splice(oscillators.length).forEach((synth) => synth.dispose());
     }
-    synthRef.current.set({
-      oscillator: { type: oscillatorType },
-      envelope,
+
+    oscillators.forEach((oscillator, index) => {
+      if (!synthsRef.current[index]) {
+        synthsRef.current[index] = new Tone.PolySynth(Tone.Synth).toDestination();
+      }
+
+      synthsRef.current[index].set({
+        oscillator: { type: oscillator.type },
+        envelope,
+      });
+      synthsRef.current[index].volume.value = oscillator.volumeDb;
     });
-    return synthRef.current;
+
+    return synthsRef.current;
   };
 
   const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
     setEnvelope((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateOscillator = (
+    id: string,
+    key: keyof Pick<OscillatorSettings, "type" | "volumeDb">,
+    value: OscillatorType | number,
+  ) => {
+    setOscillators((prev) =>
+      prev.map((oscillator) => (oscillator.id === id ? { ...oscillator, [key]: value } : oscillator)),
+    );
   };
 
   const handlePlay = async () => {
@@ -132,7 +163,7 @@ export default function Home() {
     setIsPlaying(true);
 
     await Tone.start();
-    const synth = getSynth();
+    const synths = getSynths();
     const secondsPerBeat = 60 / bpm;
     const startTime = Tone.now() + 0.05;
     let cursorTime = startTime;
@@ -141,7 +172,9 @@ export default function Home() {
     events.forEach((event) => {
       const eventDurationSeconds = event.durationBeats * secondsPerBeat;
       if (event.notes) {
-        synth.triggerAttackRelease(event.notes, eventDurationSeconds * 0.9, cursorTime);
+        synths.forEach((synth) => {
+          synth.triggerAttackRelease(event.notes, eventDurationSeconds * 0.9, cursorTime);
+        });
       }
       cursorTime += eventDurationSeconds;
       totalDurationSeconds += eventDurationSeconds;
@@ -217,24 +250,44 @@ export default function Home() {
             </div>
           </div>
 
-          <div className={styles.row}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="oscillatorType">
-                Oscillator
-              </label>
-              <select
-                id="oscillatorType"
-                className={styles.input}
-                value={oscillatorType}
-                onChange={(e) => setOscillatorType(e.target.value as OscillatorType)}
-              >
-                {oscillatorTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className={styles.oscillatorGrid}>
+            {oscillators.map((oscillator, index) => (
+              <div key={oscillator.id} className={styles.oscillatorCard}>
+                <p className={styles.sectionTitle}>Oscillator {index + 1}</p>
+                <label className={styles.label} htmlFor={`osc-type-${oscillator.id}`}>
+                  Type
+                </label>
+                <select
+                  id={`osc-type-${oscillator.id}`}
+                  className={styles.input}
+                  value={oscillator.type}
+                  onChange={(e) =>
+                    updateOscillator(oscillator.id, "type", e.target.value as OscillatorType)
+                  }
+                >
+                  {oscillatorTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+                <label className={styles.sliderLabel} htmlFor={`osc-volume-${oscillator.id}`}>
+                  Level: {oscillator.volumeDb} dB
+                </label>
+                <input
+                  id={`osc-volume-${oscillator.id}`}
+                  type="range"
+                  min="-30"
+                  max="0"
+                  step="1"
+                  className={styles.slider}
+                  value={oscillator.volumeDb}
+                  onChange={(e) =>
+                    updateOscillator(oscillator.id, "volumeDb", Number.parseFloat(e.target.value))
+                  }
+                />
+              </div>
+            ))}
           </div>
 
           <div className={styles.envelopePanel}>
