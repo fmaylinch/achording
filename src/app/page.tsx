@@ -35,15 +35,9 @@ type FilterSettings = {
   q: number;
 };
 
-function toPlayableChord(chordSymbol: string): string[] {
-  const trimmed = chordSymbol.trim();
-  const match = /^(.*?)(?:@(-?\d+))?$/.exec(trimmed);
-  if (!match) return [];
-
-  const symbol = match[1].trim();
-  const baseOctave = match[2] ? Number.parseInt(match[2], 10) : 4;
+function toPlayableChord(chordSymbol: string, baseOctave: number): string[] {
+  const symbol = chordSymbol.trim();
   if (!symbol || !Number.isFinite(baseOctave)) return [];
-
   const chord = Chord.get(symbol);
   if (!chord || chord.empty || chord.notes.length === 0) return [];
 
@@ -63,33 +57,68 @@ function toPlayableChord(chordSymbol: string): string[] {
   });
 }
 
-function parseEventToken(token: string, defaultBeats: number): SequenceEvent | null {
-  const trimmed = token.trim();
+function resolveOctaveSpec(currentOctave: number, octaveSpec: string): number | null {
+  const trimmed = octaveSpec.trim();
   if (!trimmed) return null;
 
-  const match = /^(.*?)(?:\*(\d*\.?\d+))?$/.exec(trimmed);
-  if (!match) return null;
-
-  const eventSymbol = match[1].trim();
-  const durationBeats = match[2] ? Number.parseFloat(match[2]) : defaultBeats;
-
-  if (!Number.isFinite(durationBeats) || durationBeats <= 0 || !eventSymbol) return null;
-
-  if (/^(r|rest)$/i.test(eventSymbol)) {
-    return { durationBeats, notes: null };
+  if (/^[+-]\d+$/.test(trimmed)) {
+    return currentOctave + Number.parseInt(trimmed, 10);
   }
-
-  const notes = toPlayableChord(eventSymbol);
-  if (notes.length === 0) return null;
-
-  return { durationBeats, notes };
+  if (/^-?\d+$/.test(trimmed)) {
+    return Number.parseInt(trimmed, 10);
+  }
+  return null;
 }
 
 function parseSequenceEvents(progression: string, defaultBeats: number): SequenceEvent[] {
-  return progression
-    .split(",")
-    .map((item) => parseEventToken(item, defaultBeats))
-    .filter((item): item is SequenceEvent => Boolean(item));
+  let currentOctave = 4;
+  const events: SequenceEvent[] = [];
+  const tokens = progression.split(",");
+
+  for (const token of tokens) {
+    const trimmedToken = token.trim();
+    if (!trimmedToken) continue;
+
+    const eventMatch = /^(.*?)(?:\*(\d*\.?\d+))?$/.exec(trimmedToken);
+    if (!eventMatch) return [];
+
+    const eventSymbol = eventMatch[1].trim();
+    const durationBeats = eventMatch[2] ? Number.parseFloat(eventMatch[2]) : defaultBeats;
+    if (!eventSymbol || !Number.isFinite(durationBeats) || durationBeats <= 0) return [];
+
+    const directiveMatch = /^@([+-]?\d+)$/.exec(eventSymbol);
+    if (directiveMatch) {
+      const resolvedDirectiveOctave = resolveOctaveSpec(currentOctave, directiveMatch[1]);
+      if (!Number.isFinite(resolvedDirectiveOctave)) return [];
+      currentOctave = resolvedDirectiveOctave as number;
+      continue;
+    }
+
+    if (/^(r|rest)$/i.test(eventSymbol)) {
+      events.push({ durationBeats, notes: null });
+      continue;
+    }
+
+    const chordOctaveMatch = /^(.*?)(?:@([+-]?\d+))?$/.exec(eventSymbol);
+    if (!chordOctaveMatch) return [];
+
+    const chordSymbol = chordOctaveMatch[1].trim();
+    if (!chordSymbol) return [];
+
+    let chordOctave = currentOctave;
+    if (chordOctaveMatch[2]) {
+      const resolvedChordOctave = resolveOctaveSpec(currentOctave, chordOctaveMatch[2]);
+      if (!Number.isFinite(resolvedChordOctave)) return [];
+      chordOctave = resolvedChordOctave as number;
+    }
+
+    const notes = toPlayableChord(chordSymbol, chordOctave);
+    if (notes.length === 0) return [];
+
+    events.push({ durationBeats, notes });
+  }
+
+  return events;
 }
 
 export default function Home() {
@@ -374,8 +403,9 @@ export default function Home() {
             >
               Tonal chord symbols
             </a>{" "}
-            with optional @octave and *beats (ex: Cmaj7@3*2). Use R or rest for
-            silence.
+            with optional `@octave`, `@+octaves`, `@-octaves` and `*beats`. Use
+            standalone `@...` to change default octave for next chords. Use R
+            or rest for silence.
           </p>
         </div>
 
@@ -391,8 +421,8 @@ export default function Home() {
             placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
           />
           <p className={styles.hint}>
-            Format: comma-separated tokens. Examples: Cmaj7, Cmaj7@3, Cmaj7*2,
-            Cmaj7@3*2, R*1.
+            Format: comma-separated tokens. Examples: Cmaj7, @-1, Cmaj7@+1,
+            Cmaj7*2, Cmaj7@3*2, R*1.
           </p>
 
           <div className={styles.row}>
