@@ -14,6 +14,20 @@ const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 type OscillatorType = (typeof oscillatorTypes)[number];
 const filterTypes = ["lowpass", "highpass", "bandpass", "notch"] as const;
 type FilterType = (typeof filterTypes)[number];
+const scaleRootNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+type ScaleRootNote = (typeof scaleRootNotes)[number];
+const scaleModes = ["Major", "Minor", "Dorian", "Phrygian", "Lydian", "Mixolydian", "Locrian"] as const;
+type ScaleMode = (typeof scaleModes)[number];
+const chromaticScale = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+const modeSemitoneSteps: Record<ScaleMode, number[]> = {
+  Major: [0, 2, 4, 5, 7, 9, 11],
+  Minor: [0, 2, 3, 5, 7, 8, 10],
+  Dorian: [0, 2, 3, 5, 7, 9, 10],
+  Phrygian: [0, 1, 3, 5, 7, 8, 10],
+  Lydian: [0, 2, 4, 6, 7, 9, 11],
+  Mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  Locrian: [0, 1, 3, 5, 6, 8, 10],
+};
 
 type EnvelopeSettings = {
   attack: number;
@@ -259,10 +273,46 @@ function parseSequenceEvents(progression: string, defaultBeats: number): Sequenc
   return events;
 }
 
+function generateDiatonicChordProgression(root: ScaleRootNote, mode: ScaleMode): string {
+  const rootIndex = chromaticScale.indexOf(root);
+  const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
+  const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
+  const chosenDegrees: number[] = [];
+
+  while (chosenDegrees.length < 4 && availableDegrees.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableDegrees.length);
+    const [degree] = availableDegrees.splice(randomIndex, 1);
+    chosenDegrees.push(degree);
+  }
+
+  const chordSymbols = chosenDegrees.map((degree) => {
+    const chordRoot = scaleNotes[degree];
+    const chordThird = scaleNotes[(degree + 2) % scaleNotes.length];
+    const chordFifth = scaleNotes[(degree + 4) % scaleNotes.length];
+
+    const chordRootIndex = chromaticScale.indexOf(chordRoot);
+    const thirdIndex = chromaticScale.indexOf(chordThird);
+    const fifthIndex = chromaticScale.indexOf(chordFifth);
+
+    const thirdDistance = (thirdIndex - chordRootIndex + 12) % 12;
+    const fifthDistance = (fifthIndex - chordRootIndex + 12) % 12;
+
+    if (thirdDistance === 4 && fifthDistance === 7) return chordRoot;
+    if (thirdDistance === 3 && fifthDistance === 7) return `${chordRoot}m`;
+    if (thirdDistance === 3 && fifthDistance === 6) return `${chordRoot}dim`;
+    return chordRoot;
+  });
+
+  return chordSymbols.join(", ");
+}
+
 export default function Home() {
   const [progression, setProgression] = useState("Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7");
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("2");
+  const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
+  const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
+  const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
     { id: "osc-2", type: "sine", volumeDb: -12, detuneCents: 8 },
@@ -287,6 +337,7 @@ export default function Home() {
   const eventIndexRef = useRef(0);
   const secondsPerBeatRef = useRef(0.5);
   const playbackTimerRef = useRef<number | null>(null);
+  const progressionFlashTimerRef = useRef<number | null>(null);
   const playbackActiveRef = useRef(false);
 
   useEffect(() => {
@@ -295,6 +346,10 @@ export default function Home() {
       if (playbackTimerRef.current !== null) {
         window.clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = null;
+      }
+      if (progressionFlashTimerRef.current !== null) {
+        window.clearTimeout(progressionFlashTimerRef.current);
+        progressionFlashTimerRef.current = null;
       }
       synthsRef.current.forEach((synth) => synth.dispose());
       synthsRef.current = [];
@@ -400,6 +455,22 @@ export default function Home() {
 
   const updateFilter = (key: keyof FilterSettings, value: FilterType | number) => {
     setFilter((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleGenerateProgression = () => {
+    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode));
+    setIsProgressionFlashing(false);
+    window.requestAnimationFrame(() => {
+      setIsProgressionFlashing(true);
+      if (progressionFlashTimerRef.current !== null) {
+        window.clearTimeout(progressionFlashTimerRef.current);
+      }
+      progressionFlashTimerRef.current = window.setTimeout(() => {
+        setIsProgressionFlashing(false);
+        progressionFlashTimerRef.current = null;
+      }, 650);
+    });
+    setError("");
   };
 
   const stopPlayback = () => {
@@ -566,7 +637,7 @@ export default function Home() {
           </label>
           <input
             id="chords"
-            className={styles.input}
+            className={`${styles.input} ${isProgressionFlashing ? styles.inputFlash : ""}`}
             value={progression}
             onChange={(e) => setProgression(e.target.value)}
             placeholder="Cmaj7@3*2, R*1, Dm7@3, G7*0.5, Cmaj7"
@@ -605,6 +676,55 @@ export default function Home() {
               />
             </div>
           </div>
+
+          <details className={styles.collapsible}>
+            <summary className={styles.collapsibleSummary}>Chord Generator</summary>
+            <div className={styles.filterPanel}>
+              <div className={styles.row}>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="scale-root">
+                    Root Note
+                  </label>
+                  <select
+                    id="scale-root"
+                    className={styles.input}
+                    value={scaleRoot}
+                    onChange={(e) => setScaleRoot(e.target.value as ScaleRootNote)}
+                  >
+                    {scaleRootNotes.map((rootNote) => (
+                      <option key={rootNote} value={rootNote}>
+                        {rootNote}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={styles.field}>
+                  <label className={styles.label} htmlFor="scale-mode">
+                    Mode
+                  </label>
+                  <select
+                    id="scale-mode"
+                    className={styles.input}
+                    value={scaleMode}
+                    onChange={(e) => setScaleMode(e.target.value as ScaleMode)}
+                  >
+                    {scaleModes.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                type="button"
+                className={styles.generateButton}
+                onClick={handleGenerateProgression}
+              >
+                Generate Chords
+              </button>
+            </div>
+          </details>
 
           <button
             type="button"

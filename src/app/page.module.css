@@ -83,6 +83,25 @@
   outline-offset: 1px;
 }
 
+.inputFlash {
+  animation: inputFlashPulse 0.6s ease-in-out 1;
+}
+
+@keyframes inputFlashPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(204 139 54 / 0%);
+    background: #fff;
+  }
+  30% {
+    box-shadow: 0 0 0 6px rgb(204 139 54 / 18%);
+    background: #fff4e7;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(204 139 54 / 0%);
+    background: #fff;
+  }
+}
+
 .row {
   display: flex;
   gap: 12px;
@@ -252,6 +271,22 @@
   cursor: wait;
 }
 
+.generateButton {
+  margin-top: 6px;
+  border: 1px solid #c7a47f;
+  border-radius: 10px;
+  background: #f2deca;
+  color: #3a220a;
+  height: 40px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.generateButton:hover {
+  background: #ecd2b8;
+}
+
 .error {
   color: #a01818;
   font-size: 0.92rem;
@@ -320,6 +355,21 @@
     color: #fae7ce;
   }
 
+  @keyframes inputFlashPulse {
+    0% {
+      box-shadow: 0 0 0 0 rgb(243 207 159 / 0%);
+      background: #2f2115;
+    }
+    30% {
+      box-shadow: 0 0 0 6px rgb(243 207 159 / 20%);
+      background: #3b2a1b;
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgb(243 207 159 / 0%);
+      background: #2f2115;
+    }
+  }
+
   .collapsible {
     border-color: #6a4a2f;
     background: #2a1d12;
@@ -380,6 +430,16 @@
 
   .playButton:hover:enabled {
     background: #f3cf9f;
+  }
+
+  .generateButton {
+    border-color: #8b6643;
+    background: #4a3422;
+    color: #f6dec0;
+  }
+
+  .generateButton:hover {
+    background: #5a3f2a;
   }
 
   .error {
