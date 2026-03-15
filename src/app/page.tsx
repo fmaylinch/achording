@@ -49,6 +49,13 @@ type FilterSettings = {
   q: number;
 };
 
+type GeneratorProbabilities = {
+  hasThird: number;
+  seventh: number;
+  suspended: number;
+  parallel: number;
+};
+
 type KnobProps = {
   id: string;
   label: string;
@@ -273,7 +280,15 @@ function parseSequenceEvents(progression: string, defaultBeats: number): Sequenc
   return events;
 }
 
-function generateDiatonicChordProgression(root: ScaleRootNote, mode: ScaleMode): string {
+function roll(probabilityOnTenScale: number): boolean {
+  return Math.random() < clamp(probabilityOnTenScale / 10, 0, 1);
+}
+
+function generateDiatonicChordProgression(
+  root: ScaleRootNote,
+  mode: ScaleMode,
+  probabilities: GeneratorProbabilities,
+): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
   const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
@@ -297,9 +312,30 @@ function generateDiatonicChordProgression(root: ScaleRootNote, mode: ScaleMode):
     const thirdDistance = (thirdIndex - chordRootIndex + 12) % 12;
     const fifthDistance = (fifthIndex - chordRootIndex + 12) % 12;
 
-    if (thirdDistance === 4 && fifthDistance === 7) return chordRoot;
-    if (thirdDistance === 3 && fifthDistance === 7) return `${chordRoot}m`;
-    if (thirdDistance === 3 && fifthDistance === 6) return `${chordRoot}dim`;
+    const hasThird = roll(probabilities.hasThird);
+    const isPowerChord = !hasThird;
+    const isSuspended = !isPowerChord && roll(probabilities.suspended);
+    const isSeventh = !isPowerChord && roll(probabilities.seventh);
+
+    if (isPowerChord) return `${chordRoot}5`;
+    if (isSuspended) return isSeventh ? `${chordRoot}7sus4` : `${chordRoot}sus4`;
+
+    if (thirdDistance === 4 && fifthDistance === 7) {
+      const borrowed = roll(probabilities.parallel);
+      if (isSeventh) return borrowed ? `${chordRoot}m7` : `${chordRoot}maj7`;
+      return borrowed ? `${chordRoot}m` : chordRoot;
+    }
+
+    if (thirdDistance === 3 && fifthDistance === 7) {
+      const borrowed = roll(probabilities.parallel);
+      if (isSeventh) return borrowed ? `${chordRoot}maj7` : `${chordRoot}m7`;
+      return borrowed ? chordRoot : `${chordRoot}m`;
+    }
+
+    if (thirdDistance === 3 && fifthDistance === 6) {
+      return isSeventh ? `${chordRoot}m7b5` : `${chordRoot}dim`;
+    }
+
     return chordRoot;
   });
 
@@ -312,6 +348,12 @@ export default function Home() {
   const [beatsInput, setBeatsInput] = useState("2");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
+  const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
+    hasThird: 8.0,
+    seventh: 0.5,
+    suspended: 0.2,
+    parallel: 0.2,
+  });
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -457,8 +499,12 @@ export default function Home() {
     setFilter((prev) => ({ ...prev, [key]: value }));
   };
 
+  const updateGeneratorProbability = (key: keyof GeneratorProbabilities, value: number) => {
+    setGeneratorProbabilities((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleGenerateProgression = () => {
-    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode));
+    setProgression(generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities));
     setIsProgressionFlashing(false);
     window.requestAnimationFrame(() => {
       setIsProgressionFlashing(true);
@@ -624,11 +670,9 @@ export default function Home() {
               rel="noopener noreferrer"
             >
               Tonal chord symbols
-            </a>{" "}
-            with optional `@octave`, `@+octaves`, `@-octaves` and `*beats`. Use
-            standalone `@...` to change default octave for next chords. Use R
-            or rest for silence.
+            </a>.
           </p>
+          <p>Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.</p>
         </div>
 
         <div className={styles.form}>
@@ -715,6 +759,52 @@ export default function Home() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className={styles.knobRowGenerator}>
+                <Knob
+                  id="generator-third"
+                  label="3rd"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.hasThird}
+                  defaultValue={8.0}
+                  onChange={(next) => updateGeneratorProbability("hasThird", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+                <Knob
+                  id="generator-seventh"
+                  label="7th"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.seventh}
+                  defaultValue={2}
+                  onChange={(next) => updateGeneratorProbability("seventh", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+                <Knob
+                  id="generator-sus"
+                  label="sus"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.suspended}
+                  defaultValue={1}
+                  onChange={(next) => updateGeneratorProbability("suspended", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
+                <Knob
+                  id="generator-parallel"
+                  label="parallel"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={generatorProbabilities.parallel}
+                  defaultValue={1}
+                  onChange={(next) => updateGeneratorProbability("parallel", next)}
+                  formatValue={(next) => next.toFixed(1)}
+                />
               </div>
               <button
                 type="button"

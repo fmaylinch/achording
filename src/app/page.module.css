@@ -181,6 +181,12 @@
   gap: 10px;
 }
 
+.knobRowGenerator {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .knobField {
   display: flex;
   flex-direction: column;
@@ -311,6 +317,10 @@
 
   .knobRowAdsr {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .knobRowGenerator {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
