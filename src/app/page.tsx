@@ -408,12 +408,14 @@ function generateDiatonicChordProgression(
   mode: ScaleMode,
   probabilities: GeneratorProbabilities,
   progressionLength: number,
+  lengthVariationPercent: number,
 ): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
   const availableDegrees = [0, 1, 2, 3, 4, 5, 6];
   const chosenDegrees: number[] = [];
   const normalizedLength = clamp(Math.round(progressionLength), 1, 16);
+  const normalizedLengthVariation = clamp(lengthVariationPercent, 0, 100);
 
   const isDiminishedDegree = (degree: number): boolean => {
     const chordRoot = scaleNotes[degree];
@@ -466,26 +468,38 @@ function generateDiatonicChordProgression(
     const isSuspended = !isPowerChord && roll(probabilities.suspended);
     const isSeventh = !isPowerChord && roll(probabilities.seventh);
 
-    if (isPowerChord) return `${chordRoot}5`;
-    if (isSuspended) return isSeventh ? `${chordRoot}7sus4` : `${chordRoot}sus4`;
+    let chordSymbol: string = chordRoot;
 
-    if (thirdDistance === 4 && fifthDistance === 7) {
+    if (isPowerChord) {
+      chordSymbol = `${chordRoot}5`;
+    } else if (isSuspended) {
+      chordSymbol = isSeventh ? `${chordRoot}7sus4` : `${chordRoot}sus4`;
+    } else if (thirdDistance === 4 && fifthDistance === 7) {
       const borrowed = roll(probabilities.parallel);
-      if (isSeventh) return borrowed ? `${chordRoot}m7` : `${chordRoot}maj7`;
-      return borrowed ? `${chordRoot}m` : chordRoot;
-    }
-
-    if (thirdDistance === 3 && fifthDistance === 7) {
+      if (isSeventh) {
+        chordSymbol = borrowed ? `${chordRoot}m7` : `${chordRoot}maj7`;
+      } else {
+        chordSymbol = borrowed ? `${chordRoot}m` : chordRoot;
+      }
+    } else if (thirdDistance === 3 && fifthDistance === 7) {
       const borrowed = roll(probabilities.parallel);
-      if (isSeventh) return borrowed ? `${chordRoot}maj7` : `${chordRoot}m7`;
-      return borrowed ? chordRoot : `${chordRoot}m`;
+      if (isSeventh) {
+        chordSymbol = borrowed ? `${chordRoot}maj7` : `${chordRoot}m7`;
+      } else {
+        chordSymbol = borrowed ? chordRoot : `${chordRoot}m`;
+      }
+    } else if (thirdDistance === 3 && fifthDistance === 6) {
+      chordSymbol = isSeventh ? `${chordRoot}m7b5` : `${chordRoot}dim`;
     }
 
-    if (thirdDistance === 3 && fifthDistance === 6) {
-      return isSeventh ? `${chordRoot}m7b5` : `${chordRoot}dim`;
+    const useRandomDuration = Math.random() < normalizedLengthVariation / 100;
+    if (!useRandomDuration) {
+      return chordSymbol;
     }
 
-    return chordRoot;
+    // Random duration in quarter-beat increments from 0.25 to 2.0 beats.
+    const randomDuration = (Math.floor(Math.random() * 8) + 1) / 4;
+    return `${chordSymbol}*${randomDuration}`;
   });
 
   return chordSymbols.join(", ");
@@ -547,6 +561,7 @@ export default function Home() {
     diminished: 2.0,
   });
   const [generatorLength, setGeneratorLength] = useState(4);
+  const [generatorLengthVariation, setGeneratorLengthVariation] = useState(0);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "triangle", volumeDb: -12, detuneCents: 0 },
@@ -712,7 +727,13 @@ export default function Home() {
 
   const handleGenerateProgression = () => {
     setProgression(
-      `Chords: ${generateDiatonicChordProgression(scaleRoot, scaleMode, generatorProbabilities, generatorLength)}`,
+      `Chords: ${generateDiatonicChordProgression(
+        scaleRoot,
+        scaleMode,
+        generatorProbabilities,
+        generatorLength,
+        generatorLengthVariation,
+      )}`,
     );
     flashProgressionInput();
     setError("");
@@ -961,6 +982,17 @@ export default function Home() {
                   defaultValue={4}
                   onChange={(next) => setGeneratorLength(next)}
                   formatValue={(next) => next.toFixed(0)}
+                />
+                <Knob
+                  id="generator-length-variation"
+                  label="len var"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={generatorLengthVariation}
+                  defaultValue={0}
+                  onChange={(next) => setGeneratorLengthVariation(next)}
+                  formatValue={(next) => `${next.toFixed(0)}%`}
                 />
                 <Knob
                   id="generator-third"
