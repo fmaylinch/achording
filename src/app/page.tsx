@@ -99,7 +99,7 @@ const defaultGeneratorProbabilities: GeneratorProbabilities = {
   diminished: 0,
   inversion: 0,
 };
-const defaultGeneratorLength = 8;
+const defaultGeneratorLength = 16;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -458,7 +458,11 @@ function generateDiatonicChordProgression(
   mode: ScaleMode,
   probabilities: GeneratorProbabilities,
   progressionLengthBeats: number,
+  defaultChordLengthBeats: number,
 ): string {
+  const minChordLengthBeats = 0.25;
+  const maxChordLengthBeats = 4;
+  const durationStepBeats = 0.25;
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
   const allDegrees = [0, 1, 2, 3, 4, 5, 6];
@@ -466,6 +470,11 @@ function generateDiatonicChordProgression(
   const normalizedLengthBeats = clamp(Math.round(progressionLengthBeats), 1, 16);
   const normalizedLengthVariation = clamp(probabilities.lengthVariation, 0, 100);
   const normalizedChordVariation = clamp(probabilities.chordVariation, 0, 100);
+  const normalizedDefaultChordLengthBeats = clamp(
+    quantize(defaultChordLengthBeats, minChordLengthBeats, durationStepBeats),
+    minChordLengthBeats,
+    maxChordLengthBeats,
+  );
 
   const isDiminishedDegree = (degree: number): boolean => {
     const chordRoot = scaleNotes[degree];
@@ -582,10 +591,27 @@ function generateDiatonicChordProgression(
     const baseChordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
     const chordSymbol = maybeApplyRandomInversion(baseChordSymbol);
 
-    let durationBeats = 1;
-    if (roll(normalizedLengthVariation)) {
-      // Random duration in quarter-beat increments from 0.25 to 2.0 beats.
-      durationBeats = (Math.floor(Math.random() * 8) + 1) / 4;
+    let durationBeats = normalizedDefaultChordLengthBeats;
+    if (normalizedLengthVariation > 0) {
+      const variationScale = normalizedLengthVariation / 100;
+      const shouldVaryDuration = Math.random() < variationScale;
+      if (shouldVaryDuration) {
+        const direction = Math.random() < 0.5 ? -1 : 1;
+        const maxDirectionalDelta =
+          direction < 0
+            ? normalizedDefaultChordLengthBeats - minChordLengthBeats
+            : maxChordLengthBeats - normalizedDefaultChordLengthBeats;
+        const randomDirectionalDelta = Math.random() * maxDirectionalDelta * variationScale;
+        durationBeats = clamp(
+          quantize(
+            normalizedDefaultChordLengthBeats + randomDirectionalDelta * direction,
+            minChordLengthBeats,
+            durationStepBeats,
+          ),
+          minChordLengthBeats,
+          maxChordLengthBeats,
+        );
+      }
     }
 
     if (durationBeats > remainingBeats) {
@@ -654,10 +680,11 @@ export default function Home() {
         defaultScaleMode,
         defaultGeneratorProbabilities,
         defaultGeneratorLength,
+        1,
       )}`,
   );
   const [bpmInput, setBpmInput] = useState("120");
-  const [beatsInput, setBeatsInput] = useState("1");
+  const [beatsInput, setBeatsInput] = useState("2");
   const [drumBeatInput, setDrumBeatInput] = useState("K---S---K---S-H-");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>(defaultScaleRoot);
@@ -956,6 +983,9 @@ export default function Home() {
   };
 
   const handleGenerateProgression = () => {
+    const defaultBeats = Number.parseFloat(beatsInput);
+    const defaultChordLengthBeats =
+      Number.isFinite(defaultBeats) && defaultBeats > 0 ? defaultBeats : 1;
     let nextRoot = scaleRoot;
     let nextMode = scaleMode;
     const shouldChangeRoot = roll(generatorProbabilities.rootModeChange);
@@ -988,6 +1018,7 @@ export default function Home() {
         nextMode,
         generatorProbabilities,
         generatorLength,
+        defaultChordLengthBeats,
       )}`,
     );
     flashProgressionInput();
@@ -1155,7 +1186,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Achording</h1>
-          <p className={styles.versionMeta}>v0.2 · Latest changes: drum beat</p>
+          <p className={styles.versionMeta}>v0.2 · Latest changes: respect default chord length</p>
         </div>
         <div className={styles.form}>
           <details className={styles.collapsible}>
@@ -1223,10 +1254,10 @@ export default function Home() {
                   id="generator-length"
                   label="length"
                   min={1}
-                  max={16}
+                  max={32}
                   step={1}
                   value={generatorLength}
-                  defaultValue={8}
+                  defaultValue={defaultGeneratorLength}
                   onChange={(next) => setGeneratorLength(next)}
                   formatValue={(next) => `${next.toFixed(0)} beats`}
                 />
