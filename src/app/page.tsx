@@ -11,6 +11,7 @@ type SequenceEvent = {
 };
 
 type InputNotation = "chords" | "notes";
+type DrumStep = "K" | "S" | "H" | ".";
 
 const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 type OscillatorType = (typeof oscillatorTypes)[number];
@@ -98,7 +99,7 @@ const defaultGeneratorProbabilities: GeneratorProbabilities = {
   diminished: 0,
   inversion: 0,
 };
-const defaultGeneratorLength = 4;
+const defaultGeneratorLength = 8;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -638,6 +639,13 @@ function convertRomanNumeralsToChordSymbols(
   return chordSymbols.join(", ");
 }
 
+function parseDrumPattern(pattern: string): DrumStep[] | null {
+  const compact = pattern.replace(/\s+/g, "").toUpperCase();
+  if (!compact) return [];
+  if (!/^[KSH.]+$/.test(compact)) return null;
+  return compact.split("") as DrumStep[];
+}
+
 export default function Home() {
   const [progression, setProgression] = useState(
     () =>
@@ -650,6 +658,7 @@ export default function Home() {
   );
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("1");
+  const [drumBeatInput, setDrumBeatInput] = useState("K.H.S.H.");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>(defaultScaleRoot);
   const [scaleMode, setScaleMode] = useState<ScaleMode>(defaultScaleMode);
@@ -677,31 +686,47 @@ export default function Home() {
   const [error, setError] = useState("");
   const synthsRef = useRef<Tone.PolySynth[]>([]);
   const filterRef = useRef<Tone.Filter | null>(null);
-  const activeEventsRef = useRef<SequenceEvent[]>([]);
-  const pendingEventsRef = useRef<SequenceEvent[] | null>(null);
-  const eventIndexRef = useRef(0);
-  const secondsPerBeatRef = useRef(0.5);
-  const playbackTimerRef = useRef<number | null>(null);
+  const kickRef = useRef<Tone.MembraneSynth | null>(null);
+  const snareRef = useRef<Tone.NoiseSynth | null>(null);
+  const hihatRef = useRef<Tone.MetalSynth | null>(null);
+  const chordPartRef = useRef<Tone.Part<SequenceEvent> | null>(null);
+  const drumSequenceRef = useRef<Tone.Sequence<DrumStep> | null>(null);
   const progressionFlashTimerRef = useRef<number | null>(null);
-  const playbackActiveRef = useRef(false);
+  const toTransportTicks = useCallback((beats: number) => {
+    return `${Math.round(beats * Tone.Transport.PPQ)}i`;
+  }, []);
+
+  const disposeTransportParts = useCallback(() => {
+    chordPartRef.current?.stop(0);
+    chordPartRef.current?.dispose();
+    chordPartRef.current = null;
+
+    drumSequenceRef.current?.stop(0);
+    drumSequenceRef.current?.dispose();
+    drumSequenceRef.current = null;
+  }, []);
 
   useEffect(() => {
     return () => {
-      playbackActiveRef.current = false;
-      if (playbackTimerRef.current !== null) {
-        window.clearTimeout(playbackTimerRef.current);
-        playbackTimerRef.current = null;
-      }
+      Tone.Transport.stop();
+      Tone.Transport.cancel(0);
+      disposeTransportParts();
       if (progressionFlashTimerRef.current !== null) {
         window.clearTimeout(progressionFlashTimerRef.current);
         progressionFlashTimerRef.current = null;
       }
       synthsRef.current.forEach((synth) => synth.dispose());
       synthsRef.current = [];
+      kickRef.current?.dispose();
+      snareRef.current?.dispose();
+      hihatRef.current?.dispose();
+      kickRef.current = null;
+      snareRef.current = null;
+      hihatRef.current = null;
       filterRef.current?.dispose();
       filterRef.current = null;
     };
-  }, []);
+  }, [disposeTransportParts]);
 
   const getFilter = useCallback(() => {
     if (!filterRef.current) {
@@ -746,6 +771,51 @@ export default function Home() {
     return synthsRef.current;
   }, [envelope, getFilter, oscillators]);
 
+  const getDrumKit = useCallback(() => {
+    if (!kickRef.current) {
+      kickRef.current = new Tone.MembraneSynth({
+        pitchDecay: 0.04,
+        octaves: 8,
+        envelope: {
+          attack: 0.001,
+          decay: 0.28,
+          sustain: 0,
+          release: 0.06,
+        },
+      }).toDestination();
+      kickRef.current.volume.value = -2;
+    }
+
+    if (!snareRef.current) {
+      snareRef.current = new Tone.NoiseSynth({
+        noise: { type: "white", playbackRate: 2.2 },
+        envelope: {
+          attack: 0.001,
+          decay: 0.14,
+          sustain: 0,
+          release: 0.02,
+        },
+      }).toDestination();
+      snareRef.current.volume.value = -11;
+    }
+
+    if (!hihatRef.current) {
+      hihatRef.current = new Tone.MetalSynth({
+        envelope: {
+          attack: 0.001,
+          decay: 0.08,
+          release: 0.01,
+        },
+        harmonicity: 5.1,
+        modulationIndex: 30,
+        resonance: 3000,
+        octaves: 2,
+      }).toDestination();
+      hihatRef.current.frequency.value = 300;
+      hihatRef.current.volume.value = -15;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isPlaying) return;
 
@@ -781,7 +851,7 @@ export default function Home() {
     const bpm = Number.parseFloat(bpmInput);
     if (!Number.isFinite(bpm) || bpm <= 0) return;
 
-    secondsPerBeatRef.current = 60 / bpm;
+    Tone.Transport.bpm.rampTo(bpm, 0.05);
   }, [isPlaying, bpmInput]);
 
   const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
@@ -899,16 +969,64 @@ export default function Home() {
     setError("");
   };
 
+  const buildAndStartTransportPlayback = useCallback(
+    (events: SequenceEvent[], drumSteps: DrumStep[], bpm: number) => {
+      disposeTransportParts();
+
+      Tone.Transport.stop();
+      Tone.Transport.cancel(0);
+      Tone.Transport.position = 0;
+      Tone.Transport.bpm.value = bpm;
+
+      let accumulatedBeats = 0;
+      const timelineEvents: Array<[string, SequenceEvent]> = [];
+      for (const event of events) {
+        timelineEvents.push([toTransportTicks(accumulatedBeats), event]);
+        accumulatedBeats += event.durationBeats;
+      }
+      const loopBeats = Math.max(accumulatedBeats, 0.25);
+
+      const chordPart = new Tone.Part<SequenceEvent>((time, event) => {
+        if (!event.notes) return;
+        const secondsPerBeat = 60 / Tone.Transport.bpm.value;
+        const eventDurationSeconds = Math.max(0.01, event.durationBeats * secondsPerBeat * 0.9);
+        synthsRef.current.forEach((synth) => {
+          synth.triggerAttackRelease(event.notes as string[], eventDurationSeconds, time);
+        });
+      }, timelineEvents);
+      chordPart.loop = true;
+      chordPart.loopEnd = toTransportTicks(loopBeats);
+      chordPart.start(0);
+      chordPartRef.current = chordPart;
+
+      if (drumSteps.length > 0) {
+        const drumSequence = new Tone.Sequence<DrumStep>(
+          (time, step) => {
+            if (step === "K") {
+              kickRef.current?.triggerAttackRelease("C1", "32n", time);
+            } else if (step === "S") {
+              snareRef.current?.triggerAttackRelease("32n", time);
+            } else if (step === "H") {
+              hihatRef.current?.triggerAttackRelease("32n", time);
+            }
+          },
+          drumSteps,
+          "16n",
+        );
+        drumSequence.start(0);
+        drumSequenceRef.current = drumSequence;
+      }
+
+      Tone.Transport.start("+0.02");
+    },
+    [disposeTransportParts, toTransportTicks],
+  );
+
   const stopPlayback = () => {
-    playbackActiveRef.current = false;
-    if (playbackTimerRef.current !== null) {
-      window.clearTimeout(playbackTimerRef.current);
-      playbackTimerRef.current = null;
-    }
+    Tone.Transport.stop();
+    Tone.Transport.cancel(0);
+    disposeTransportParts();
     synthsRef.current.forEach((synth) => synth.releaseAll());
-    activeEventsRef.current = [];
-    pendingEventsRef.current = null;
-    eventIndexRef.current = 0;
     setIsPlaying(false);
   };
 
@@ -930,90 +1048,22 @@ export default function Home() {
     }
 
     const events = parseSequenceEvents(progression, defaultBeats);
+    const drumSteps = parseDrumPattern(drumBeatInput);
 
     if (events.length === 0) {
       setError("Use Notes: CEG@3*2, R*1, DFA or Chords: Cmaj7@3*2, R*1, Dm7.");
+      return;
+    }
+    if (drumSteps === null) {
+      setError("Drum beat supports only K (kick), S (snare), H (hihat), and . (silence).");
       return;
     }
 
     setError("");
     await Tone.start();
     getSynths();
-    secondsPerBeatRef.current = 60 / bpm;
-    activeEventsRef.current = events;
-    pendingEventsRef.current = null;
-    eventIndexRef.current = 0;
-    playbackActiveRef.current = true;
-
-    const scheduleNextStep = (delayMs: number) => {
-      playbackTimerRef.current = window.setTimeout(() => {
-        if (!playbackActiveRef.current) return;
-
-        const currentEvents = activeEventsRef.current;
-        if (currentEvents.length === 0) return;
-
-        const currentIndex = Math.min(eventIndexRef.current, currentEvents.length - 1);
-        eventIndexRef.current = currentIndex;
-        const event = currentEvents[currentIndex];
-        const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
-
-        if (event.notes) {
-          const notes = event.notes;
-          const startTime = Tone.now() + 0.01;
-          synthsRef.current.forEach((synth) => {
-            synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, startTime);
-          });
-        }
-
-        const isLastEvent = currentIndex >= currentEvents.length - 1;
-        if (isLastEvent) {
-          if (pendingEventsRef.current && pendingEventsRef.current.length > 0) {
-            activeEventsRef.current = pendingEventsRef.current;
-            pendingEventsRef.current = null;
-            setError("");
-          }
-          eventIndexRef.current = 0;
-        } else {
-          eventIndexRef.current = currentIndex + 1;
-        }
-
-        scheduleNextStep(eventDurationSeconds * 1000);
-      }, delayMs);
-    };
-
-    const playStep = () => {
-      const currentEvents = activeEventsRef.current;
-      if (currentEvents.length === 0) return;
-
-      const currentIndex = Math.min(eventIndexRef.current, currentEvents.length - 1);
-      eventIndexRef.current = currentIndex;
-      const event = currentEvents[currentIndex];
-      const eventDurationSeconds = event.durationBeats * secondsPerBeatRef.current;
-
-      if (event.notes) {
-        const notes = event.notes;
-        const startTime = Tone.now() + 0.01;
-        synthsRef.current.forEach((synth) => {
-          synth.triggerAttackRelease(notes, eventDurationSeconds * 0.9, startTime);
-        });
-      }
-
-      const isLastEvent = currentIndex >= currentEvents.length - 1;
-      if (isLastEvent) {
-        if (pendingEventsRef.current && pendingEventsRef.current.length > 0) {
-          activeEventsRef.current = pendingEventsRef.current;
-          pendingEventsRef.current = null;
-          setError("");
-        }
-        eventIndexRef.current = 0;
-      } else {
-        eventIndexRef.current = currentIndex + 1;
-      }
-
-      scheduleNextStep(eventDurationSeconds * 1000);
-    };
-
-    playStep();
+    getDrumKit();
+    buildAndStartTransportPlayback(events, drumSteps, bpm);
     setIsPlaying(true);
   };
 
@@ -1028,14 +1078,20 @@ export default function Home() {
 
     const events = parseSequenceEvents(progression, defaultBeats);
     if (events.length === 0) {
-      pendingEventsRef.current = null;
       return;
     }
 
-    activeEventsRef.current = events;
-    pendingEventsRef.current = null;
-    eventIndexRef.current = Math.min(eventIndexRef.current, events.length - 1);
-  }, [isPlaying, progression, beatsInput]);
+    const drumSteps = parseDrumPattern(drumBeatInput);
+    if (drumSteps === null) return;
+
+    buildAndStartTransportPlayback(events, drumSteps, Tone.Transport.bpm.value);
+  }, [isPlaying, progression, beatsInput, drumBeatInput, buildAndStartTransportPlayback]);
+
+  useEffect(() => {
+    return () => {
+      disposeTransportParts();
+    };
+  }, [disposeTransportParts]);
 
   const currentNotation = parseInputNotation(progression).notation;
   const convertNotationLabel = currentNotation === "notes" ? "To Chords" : "To Notes";
@@ -1116,7 +1172,7 @@ export default function Home() {
                   max={16}
                   step={1}
                   value={generatorLength}
-                  defaultValue={4}
+                  defaultValue={8}
                   onChange={(next) => setGeneratorLength(next)}
                   formatValue={(next) => `${next.toFixed(0)} beats`}
                 />
@@ -1267,6 +1323,19 @@ export default function Home() {
           >
             {isPlaying ? "Stop" : "Play"}
           </button>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="drum-beat">
+              Drum Beat (K, S, H, .)
+            </label>
+            <input
+              id="drum-beat"
+              className={styles.input}
+              value={drumBeatInput}
+              onChange={(e) => setDrumBeatInput(e.target.value)}
+              placeholder="K.H.S.H."
+              aria-label="Drum beat pattern"
+            />
+          </div>
 
           <div className={styles.row}>
             <div className={styles.field}>
