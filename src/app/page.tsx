@@ -441,14 +441,13 @@ function generateDiatonicChordProgression(
   root: ScaleRootNote,
   mode: ScaleMode,
   probabilities: GeneratorProbabilities,
-  progressionLength: number,
+  progressionLengthBeats: number,
 ): string {
   const rootIndex = chromaticScale.indexOf(root);
   const scaleNotes = modeSemitoneSteps[mode].map((step) => chromaticScale[(rootIndex + step) % 12]);
   const allDegrees = [0, 1, 2, 3, 4, 5, 6];
   const usedDegrees: number[] = [];
-  const chosenDegrees: number[] = [];
-  const normalizedLength = clamp(Math.round(progressionLength), 1, 16);
+  const normalizedLengthBeats = clamp(Math.round(progressionLengthBeats), 1, 16);
   const normalizedLengthVariation = clamp(probabilities.lengthVariation, 0, 100);
   const normalizedChordVariation = clamp(probabilities.chordVariation, 0, 100);
 
@@ -463,34 +462,6 @@ function generateDiatonicChordProgression(
     const fifthDistance = (fifthIndex - chordRootIndex + 12) % 12;
     return thirdDistance === 3 && fifthDistance === 6;
   };
-
-  while (chosenDegrees.length < normalizedLength) {
-    const includeDiminished = roll(probabilities.diminished);
-    const nonDiminishedPool = allDegrees.filter((degree) => !isDiminishedDegree(degree));
-    const allowedDegrees = includeDiminished ? allDegrees : nonDiminishedPool;
-    const unusedAllowedDegrees = allowedDegrees.filter((degree) => !usedDegrees.includes(degree));
-    const shouldPickRandomChordNormally =
-      chosenDegrees.length === 0 || roll(normalizedChordVariation);
-
-    const sourcePool = shouldPickRandomChordNormally ? unusedAllowedDegrees : usedDegrees;
-    const fallbackPool = shouldPickRandomChordNormally ? usedDegrees : unusedAllowedDegrees;
-    const nonDiminishedFallbackPool = nonDiminishedPool.filter(
-      (degree) => !isDiminishedDegree(degree),
-    );
-    const effectivePool =
-      sourcePool.length > 0
-        ? sourcePool
-        : fallbackPool.length > 0
-          ? fallbackPool
-          : nonDiminishedFallbackPool;
-
-    const randomIndex = Math.floor(Math.random() * effectivePool.length);
-    const degree = effectivePool[randomIndex];
-    if (!usedDegrees.includes(degree)) {
-      usedDegrees.push(degree);
-    }
-    chosenDegrees.push(degree);
-  }
 
   const buildChordSymbolForDegree = (degree: number): string => {
     const chordRoot = scaleNotes[degree];
@@ -553,22 +524,60 @@ function generateDiatonicChordProgression(
   };
 
   const degreeToChordSymbol = new Map<number, string>();
-  const chordSymbols = chosenDegrees.map((degree) => {
+  const formatDuration = (duration: number): string => {
+    return Number(duration.toFixed(2)).toString();
+  };
+
+  const pickNextDegree = (isFirstChord: boolean): number => {
+    const includeDiminished = roll(probabilities.diminished);
+    const nonDiminishedPool = allDegrees.filter((degree) => !isDiminishedDegree(degree));
+    const allowedDegrees = includeDiminished ? allDegrees : nonDiminishedPool;
+    const unusedAllowedDegrees = allowedDegrees.filter((degree) => !usedDegrees.includes(degree));
+    const shouldPickRandomChordNormally = isFirstChord || roll(normalizedChordVariation);
+    const sourcePool = shouldPickRandomChordNormally ? unusedAllowedDegrees : usedDegrees;
+    const fallbackPool = shouldPickRandomChordNormally ? usedDegrees : unusedAllowedDegrees;
+    const effectivePool =
+      sourcePool.length > 0
+        ? sourcePool
+        : fallbackPool.length > 0
+          ? fallbackPool
+          : nonDiminishedPool;
+
+    const randomIndex = Math.floor(Math.random() * effectivePool.length);
+    const degree = effectivePool[randomIndex];
+    if (!usedDegrees.includes(degree)) {
+      usedDegrees.push(degree);
+    }
+    return degree;
+  };
+
+  let accumulatedBeats = 0;
+  let isFirstChord = true;
+  const chordSymbols: string[] = [];
+
+  while (accumulatedBeats < normalizedLengthBeats) {
+    const remainingBeats = normalizedLengthBeats - accumulatedBeats;
+    const degree = pickNextDegree(isFirstChord);
+    isFirstChord = false;
+
     if (!degreeToChordSymbol.has(degree)) {
       degreeToChordSymbol.set(degree, buildChordSymbolForDegree(degree));
     }
     const baseChordSymbol = degreeToChordSymbol.get(degree) ?? buildChordSymbolForDegree(degree);
     const chordSymbol = maybeApplyRandomInversion(baseChordSymbol);
 
-    const useRandomDuration = roll(normalizedLengthVariation);
-    if (!useRandomDuration) {
-      return chordSymbol;
+    let durationBeats = 1;
+    if (roll(normalizedLengthVariation)) {
+      // Random duration in quarter-beat increments from 0.25 to 2.0 beats.
+      durationBeats = (Math.floor(Math.random() * 8) + 1) / 4;
     }
 
-    // Random duration in quarter-beat increments from 0.25 to 2.0 beats.
-    const randomDuration = (Math.floor(Math.random() * 8) + 1) / 4;
-    return `${chordSymbol}*${randomDuration}`;
-  });
+    if (durationBeats > remainingBeats) {
+      durationBeats = remainingBeats;
+    }
+    accumulatedBeats += durationBeats;
+    chordSymbols.push(`${chordSymbol}*${formatDuration(durationBeats)}`);
+  }
 
   return chordSymbols.join(", ");
 }
@@ -1094,7 +1103,7 @@ export default function Home() {
                   value={generatorLength}
                   defaultValue={4}
                   onChange={(next) => setGeneratorLength(next)}
-                  formatValue={(next) => `${next.toFixed(0)} chords`}
+                  formatValue={(next) => `${next.toFixed(0)} beats`}
                 />
                 <Knob
                   id="generator-length-variation"
