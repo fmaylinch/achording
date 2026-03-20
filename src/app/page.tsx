@@ -1159,7 +1159,7 @@ export default function Home() {
         </div>
         <div className={styles.form}>
           <details className={styles.collapsible}>
-            <summary className={styles.collapsibleSummary}>Chord Generator</summary>
+            <summary className={styles.collapsibleSummary}>Chord Generation Config</summary>
             <div className={styles.filterPanel}>
               <div className={styles.row}>
                 <div className={styles.field}>
@@ -1339,15 +1339,15 @@ export default function Home() {
               >
                 Randomize Knobs
               </button>
-              <button
-                type="button"
-                className={styles.generateButton}
-                onClick={handleGenerateProgression}
-              >
-                Generate Chords
-              </button>
             </div>
           </details>
+          <button
+            type="button"
+            className={styles.generateButton}
+            onClick={handleGenerateProgression}
+          >
+            Generate Chords
+          </button>
           <div className={styles.progressionInputRow}>
             <input
               id="chords"
