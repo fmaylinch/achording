@@ -626,14 +626,14 @@ function convertRomanNumeralsToChordSymbols(
 export default function Home() {
   const [progression, setProgression] = useState("Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG");
   const [bpmInput, setBpmInput] = useState("120");
-  const [beatsInput, setBeatsInput] = useState("2");
+  const [beatsInput, setBeatsInput] = useState("1");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
   const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
   const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
-    lengthVariation: 0,
+    lengthVariation: 50,
     chordVariation: 80,
-    rootModeChange: 0,
+    rootModeChange: 100,
     hasThird: 80,
     seventh: 0,
     suspended: 0,
@@ -641,7 +641,7 @@ export default function Home() {
     diminished: 0,
     inversion: 0,
   });
-  const [generatorLength, setGeneratorLength] = useState(4);
+  const [generatorLength, setGeneratorLength] = useState(8);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "sawtooth", volumeDb: -12, detuneCents: 0 },
