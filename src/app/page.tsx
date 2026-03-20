@@ -1155,7 +1155,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Achording</h1>
-          <p className={styles.versionMeta}>v0.1.1 · Latest changes: button to randomize knobs</p>
+          <p className={styles.versionMeta}>v0.2 · Latest changes: drum beat</p>
         </div>
         <div className={styles.form}>
           <details className={styles.collapsible}>
