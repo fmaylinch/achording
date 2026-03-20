@@ -21,8 +21,8 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
       tone:
-        specifier: ^15.1.22
-        version: 15.1.22
+        specifier: ^15.4.3
+        version: 15.4.3
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -1763,8 +1763,8 @@ packages:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
 
-  tone@15.1.22:
-    resolution: {integrity: sha512-TCScAGD4sLsama5DjvTUXlLDXSqPealhL64nsdV1hhr6frPWve0DeSo63AKnSJwgfg55fhvxj0iPPRwPN5o0ag==}
+  tone@15.4.3:
+    resolution: {integrity: sha512-VQQScvPjJEHHHRz9UDqiggnwvXpACQKI+1LToYW5deT4VOgM+KKVG7USub/wvUqbqteRd8sp7zH7y6o93ejgnA==}
 
   ts-api-utils@2.4.0:
     resolution: {integrity: sha512-3TaVTaAv2gTiMB35i3FiGJaRfwb3Pyn/j3m/bfAvGe8FB7CF6u+LMYqYlDh7reQf7UNvoTvdfAqHGmPGOSsPmA==}
@@ -3885,7 +3885,7 @@ snapshots:
     dependencies:
       is-number: 7.0.0
 
-  tone@15.1.22:
+  tone@15.4.3:
     dependencies:
       standardized-audio-context: 25.3.77
       tslib: 2.8.1

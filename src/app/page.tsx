@@ -11,7 +11,7 @@ type SequenceEvent = {
 };
 
 type InputNotation = "chords" | "notes";
-type DrumStep = "K" | "S" | "H" | ".";
+type DrumStep = "K" | "S" | "H" | "-";
 
 const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 type OscillatorType = (typeof oscillatorTypes)[number];
@@ -109,7 +109,7 @@ function quantize(value: number, min: number, step: number): number {
   if (step <= 0) return value;
 
   const rounded = Math.round((value - min) / step) * step + min;
-  const precision = Math.max(0, (step.toString().split(".")[1] || "").length);
+  const precision = Math.max(0, (step.toString().split("-")[1] || "").length);
   return Number(rounded.toFixed(precision));
 }
 
@@ -642,7 +642,7 @@ function convertRomanNumeralsToChordSymbols(
 function parseDrumPattern(pattern: string): DrumStep[] | null {
   const compact = pattern.replace(/\s+/g, "").toUpperCase();
   if (!compact) return [];
-  if (!/^[KSH.]+$/.test(compact)) return null;
+  if (!/^[KSH-]+$/.test(compact)) return null;
   return compact.split("") as DrumStep[];
 }
 
@@ -658,7 +658,7 @@ export default function Home() {
   );
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("1");
-  const [drumBeatInput, setDrumBeatInput] = useState("K.H.S.H.");
+  const [drumBeatInput, setDrumBeatInput] = useState("K---S---K---S-H-");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
   const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>(defaultScaleRoot);
   const [scaleMode, setScaleMode] = useState<ScaleMode>(defaultScaleMode);
@@ -687,7 +687,10 @@ export default function Home() {
   const synthsRef = useRef<Tone.PolySynth[]>([]);
   const filterRef = useRef<Tone.Filter | null>(null);
   const kickRef = useRef<Tone.MembraneSynth | null>(null);
+  const kickClickRef = useRef<Tone.NoiseSynth | null>(null);
   const snareRef = useRef<Tone.NoiseSynth | null>(null);
+  const snareBodyRef = useRef<Tone.MembraneSynth | null>(null);
+  const clapRef = useRef<Tone.NoiseSynth | null>(null);
   const hihatRef = useRef<Tone.MetalSynth | null>(null);
   const chordPartRef = useRef<Tone.Part<SequenceEvent> | null>(null);
   const drumSequenceRef = useRef<Tone.Sequence<DrumStep> | null>(null);
@@ -718,10 +721,16 @@ export default function Home() {
       synthsRef.current.forEach((synth) => synth.dispose());
       synthsRef.current = [];
       kickRef.current?.dispose();
+      kickClickRef.current?.dispose();
       snareRef.current?.dispose();
+      snareBodyRef.current?.dispose();
+      clapRef.current?.dispose();
       hihatRef.current?.dispose();
       kickRef.current = null;
+      kickClickRef.current = null;
       snareRef.current = null;
+      snareBodyRef.current = null;
+      clapRef.current = null;
       hihatRef.current = null;
       filterRef.current?.dispose();
       filterRef.current = null;
@@ -774,37 +783,77 @@ export default function Home() {
   const getDrumKit = useCallback(() => {
     if (!kickRef.current) {
       kickRef.current = new Tone.MembraneSynth({
-        pitchDecay: 0.04,
-        octaves: 8,
+        pitchDecay: 0.014,
+        octaves: 3.5,
         envelope: {
-          attack: 0.001,
-          decay: 0.28,
+          attack: 0.0008,
+          decay: 0.32,
           sustain: 0,
-          release: 0.06,
+          release: 0.14,
         },
       }).toDestination();
-      kickRef.current.volume.value = -2;
+      kickRef.current.volume.value = -3;
+    }
+
+    if (!kickClickRef.current) {
+      kickClickRef.current = new Tone.NoiseSynth({
+        noise: { type: "pink", playbackRate: 1 },
+        envelope: {
+          attack: 0.0005,
+          decay: 0.012,
+          sustain: 0,
+          release: 0.006,
+        },
+      }).toDestination();
+      kickClickRef.current.volume.value = -28;
     }
 
     if (!snareRef.current) {
       snareRef.current = new Tone.NoiseSynth({
-        noise: { type: "white", playbackRate: 2.2 },
+        noise: { type: "white", playbackRate: 2.8 },
         envelope: {
-          attack: 0.001,
-          decay: 0.14,
+          attack: 0.0005,
+          decay: 0.055,
+          sustain: 0,
+          release: 0.008,
+        },
+      }).toDestination();
+      snareRef.current.volume.value = -4;
+    }
+
+    if (!snareBodyRef.current) {
+      snareBodyRef.current = new Tone.MembraneSynth({
+        pitchDecay: 0.008,
+        octaves: 1.6,
+        envelope: {
+          attack: 0.0008,
+          decay: 0.11,
+          sustain: 0,
+          release: 0.04,
+        },
+      }).toDestination();
+      snareBodyRef.current.volume.value = -8;
+    }
+
+    if (!clapRef.current) {
+      clapRef.current = new Tone.NoiseSynth({
+        noise: { type: "pink", playbackRate: 1.4 },
+        envelope: {
+          attack: 0.0005,
+          decay: 0.045,
           sustain: 0,
           release: 0.02,
         },
       }).toDestination();
-      snareRef.current.volume.value = -11;
+      clapRef.current.volume.value = -9;
     }
 
     if (!hihatRef.current) {
       hihatRef.current = new Tone.MetalSynth({
         envelope: {
-          attack: 0.001,
-          decay: 0.08,
-          release: 0.01,
+          attack: 0.0015,
+          decay: 0.07,
+          release: 0.014,
         },
         harmonicity: 5.1,
         modulationIndex: 30,
@@ -812,7 +861,7 @@ export default function Home() {
         octaves: 2,
       }).toDestination();
       hihatRef.current.frequency.value = 300;
-      hihatRef.current.volume.value = -15;
+      hihatRef.current.volume.value = -19;
     }
   }, []);
 
@@ -1003,9 +1052,14 @@ export default function Home() {
         const drumSequence = new Tone.Sequence<DrumStep>(
           (time, step) => {
             if (step === "K") {
-              kickRef.current?.triggerAttackRelease("C1", "32n", time);
+              kickRef.current?.triggerAttackRelease("A0", "8n", time, 1);
+              kickClickRef.current?.triggerAttackRelease("128n", time, 0.2);
             } else if (step === "S") {
-              snareRef.current?.triggerAttackRelease("32n", time);
+              snareRef.current?.triggerAttackRelease("32n", time, 1);
+              snareBodyRef.current?.triggerAttackRelease("G1", "16n", time, 1);
+              clapRef.current?.triggerAttackRelease("64n", time, 0.9);
+              clapRef.current?.triggerAttackRelease("64n", time + 0.012, 0.75);
+              clapRef.current?.triggerAttackRelease("64n", time + 0.025, 0.6);
             } else if (step === "H") {
               hihatRef.current?.triggerAttackRelease("32n", time);
             }
@@ -1055,7 +1109,7 @@ export default function Home() {
       return;
     }
     if (drumSteps === null) {
-      setError("Drum beat supports only K (kick), S (snare), H (hihat), and . (silence).");
+      setError("Drum beat supports only K (kick), S (snare), H (hihat), and - (silence).");
       return;
     }
 
@@ -1325,7 +1379,7 @@ export default function Home() {
           </button>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="drum-beat">
-              Drum Beat (K, S, H, .)
+              Drum Beat (K, S, H, -)
             </label>
             <input
               id="drum-beat"
