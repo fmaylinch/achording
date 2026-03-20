@@ -85,6 +85,21 @@ type KnobProps = {
   dragSensitivity?: number;
 };
 
+const defaultScaleRoot: ScaleRootNote = "C";
+const defaultScaleMode: ScaleMode = "Major";
+const defaultGeneratorProbabilities: GeneratorProbabilities = {
+  lengthVariation: 50,
+  chordVariation: 80,
+  rootModeChange: 100,
+  hasThird: 80,
+  seventh: 0,
+  suspended: 0,
+  parallel: 0,
+  diminished: 0,
+  inversion: 0,
+};
+const defaultGeneratorLength = 4;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -624,24 +639,24 @@ function convertRomanNumeralsToChordSymbols(
 }
 
 export default function Home() {
-  const [progression, setProgression] = useState("Notes: CEG@3*2, R*1, DFA@3, GBD*0.5, CEG");
+  const [progression, setProgression] = useState(
+    () =>
+      `Chords: ${generateDiatonicChordProgression(
+        defaultScaleRoot,
+        defaultScaleMode,
+        defaultGeneratorProbabilities,
+        defaultGeneratorLength,
+      )}`,
+  );
   const [bpmInput, setBpmInput] = useState("120");
   const [beatsInput, setBeatsInput] = useState("1");
   const [romanInput, setRomanInput] = useState("I, IV, V, vi");
-  const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>("C");
-  const [scaleMode, setScaleMode] = useState<ScaleMode>("Major");
-  const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>({
-    lengthVariation: 50,
-    chordVariation: 80,
-    rootModeChange: 100,
-    hasThird: 80,
-    seventh: 0,
-    suspended: 0,
-    parallel: 0,
-    diminished: 0,
-    inversion: 0,
-  });
-  const [generatorLength, setGeneratorLength] = useState(8);
+  const [scaleRoot, setScaleRoot] = useState<ScaleRootNote>(defaultScaleRoot);
+  const [scaleMode, setScaleMode] = useState<ScaleMode>(defaultScaleMode);
+  const [generatorProbabilities, setGeneratorProbabilities] = useState<GeneratorProbabilities>(
+    defaultGeneratorProbabilities,
+  );
+  const [generatorLength, setGeneratorLength] = useState(defaultGeneratorLength);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
   const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
     { id: "osc-1", type: "sawtooth", volumeDb: -12, detuneCents: 0 },
