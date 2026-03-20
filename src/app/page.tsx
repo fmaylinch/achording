@@ -692,7 +692,7 @@ export default function Home() {
   const snareBodyRef = useRef<Tone.MembraneSynth | null>(null);
   const clapRef = useRef<Tone.NoiseSynth | null>(null);
   const hihatRef = useRef<Tone.MetalSynth | null>(null);
-  const chordPartRef = useRef<Tone.Part<SequenceEvent> | null>(null);
+  const chordPartRef = useRef<Tone.Part<[string, SequenceEvent]> | null>(null);
   const drumSequenceRef = useRef<Tone.Sequence<DrumStep> | null>(null);
   const progressionFlashTimerRef = useRef<number | null>(null);
   const toTransportTicks = useCallback((beats: number) => {
@@ -1035,12 +1035,13 @@ export default function Home() {
       }
       const loopBeats = Math.max(accumulatedBeats, 0.25);
 
-      const chordPart = new Tone.Part<SequenceEvent>((time, event) => {
-        if (!event.notes) return;
+      const chordPart = new Tone.Part<[string, SequenceEvent]>((time, event) => {
+        const notes = event.notes;
+        if (!notes) return;
         const secondsPerBeat = 60 / Tone.Transport.bpm.value;
         const eventDurationSeconds = Math.max(0.01, event.durationBeats * secondsPerBeat * 0.9);
         synthsRef.current.forEach((synth) => {
-          synth.triggerAttackRelease(event.notes as string[], eventDurationSeconds, time);
+          synth.triggerAttackRelease(notes, eventDurationSeconds, time);
         });
       }, timelineEvents);
       chordPart.loop = true;
@@ -1126,7 +1127,6 @@ export default function Home() {
 
     const defaultBeats = Number.parseFloat(beatsInput);
     if (!Number.isFinite(defaultBeats) || defaultBeats <= 0) {
-      pendingEventsRef.current = null;
       return;
     }
 
