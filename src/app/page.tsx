@@ -5,8 +5,6 @@ import styles from "./page.module.css";
 import * as Tone from "tone";
 import { Knob } from "./components/Knob";
 import {
-  oscillatorTypes,
-  filterTypes,
   scaleRootNotes,
   scaleModes,
   defaultScaleRoot,
@@ -15,11 +13,6 @@ import {
   defaultGeneratorLength,
   type ScaleRootNote,
   type ScaleMode,
-  type OscillatorType,
-  type FilterType,
-  type EnvelopeSettings,
-  type OscillatorSettings,
-  type FilterSettings,
   type GeneratorProbabilities,
   type SequenceEvent,
   type DrumStep,
@@ -33,6 +26,39 @@ import {
   parseSequenceEvents,
   parseDrumPattern,
 } from "./utils/music";
+
+const PIANO_SAMPLES: Record<string, string> = {
+  A0: "A0.mp3",
+  C1: "C1.mp3",
+  "D#1": "Ds1.mp3",
+  "F#1": "Fs1.mp3",
+  A1: "A1.mp3",
+  C2: "C2.mp3",
+  "D#2": "Ds2.mp3",
+  "F#2": "Fs2.mp3",
+  A2: "A2.mp3",
+  C3: "C3.mp3",
+  "D#3": "Ds3.mp3",
+  "F#3": "Fs3.mp3",
+  A3: "A3.mp3",
+  C4: "C4.mp3",
+  "D#4": "Ds4.mp3",
+  "F#4": "Fs4.mp3",
+  A4: "A4.mp3",
+  C5: "C5.mp3",
+  "D#5": "Ds5.mp3",
+  "F#5": "Fs5.mp3",
+  A5: "A5.mp3",
+  C6: "C6.mp3",
+  "D#6": "Ds6.mp3",
+  "F#6": "Fs6.mp3",
+  A6: "A6.mp3",
+  C7: "C7.mp3",
+  "D#7": "Ds7.mp3",
+  "F#7": "Fs7.mp3",
+  A7: "A7.mp3",
+  C8: "C8.mp3",
+};
 
 export default function Home() {
   const [progression, setProgression] = useState(
@@ -56,25 +82,10 @@ export default function Home() {
   );
   const [generatorLength, setGeneratorLength] = useState(defaultGeneratorLength);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
-  const [oscillators, setOscillators] = useState<OscillatorSettings[]>([
-    { id: "osc-1", type: "sawtooth", volumeDb: -12, detuneCents: 0 },
-    { id: "osc-2", type: "sine", volumeDb: -12, detuneCents: 8 },
-  ]);
-  const [filter, setFilter] = useState<FilterSettings>({
-    type: "lowpass",
-    frequency: 8000,
-    q: 1,
-  });
-  const [envelope, setEnvelope] = useState<EnvelopeSettings>({
-    attack: 0.06,
-    decay: 0.15,
-    sustain: 0.25,
-    release: 1.2,
-  });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const synthsRef = useRef<Tone.PolySynth[]>([]);
-  const filterRef = useRef<Tone.Filter | null>(null);
+  const samplerRef = useRef<Tone.Sampler | null>(null);
   const kickRef = useRef<Tone.MembraneSynth | null>(null);
   const kickClickRef = useRef<Tone.NoiseSynth | null>(null);
   const snareRef = useRef<Tone.NoiseSynth | null>(null);
@@ -107,8 +118,8 @@ export default function Home() {
         window.clearTimeout(progressionFlashTimerRef.current);
         progressionFlashTimerRef.current = null;
       }
-      synthsRef.current.forEach((synth) => synth.dispose());
-      synthsRef.current = [];
+      samplerRef.current?.dispose();
+      samplerRef.current = null;
       kickRef.current?.dispose();
       kickClickRef.current?.dispose();
       snareRef.current?.dispose();
@@ -121,53 +132,21 @@ export default function Home() {
       snareBodyRef.current = null;
       clapRef.current = null;
       hihatRef.current = null;
-      filterRef.current?.dispose();
-      filterRef.current = null;
     };
   }, [disposeTransportParts]);
 
-  const getFilter = useCallback(() => {
-    if (!filterRef.current) {
-      filterRef.current = new Tone.Filter({
-        type: filter.type,
-        frequency: filter.frequency,
-        Q: filter.q,
-      }).toDestination();
-    }
+  const getPianoSampler = useCallback(() => {
+    if (samplerRef.current) return samplerRef.current;
 
-    filterRef.current.set({
-      type: filter.type,
-      frequency: filter.frequency,
-      Q: filter.q,
-    });
+    const sampler = new Tone.Sampler({
+      urls: PIANO_SAMPLES,
+      baseUrl: "https://tonejs.github.io/audio/salamander/",
+      release: 1,
+    }).toDestination();
 
-    return filterRef.current;
-  }, [filter]);
-
-  const getSynths = useCallback(() => {
-    const filterNode = getFilter();
-
-    if (synthsRef.current.length > oscillators.length) {
-      synthsRef.current.splice(oscillators.length).forEach((synth) => synth.dispose());
-    }
-
-    oscillators.forEach((oscillator, index) => {
-      if (!synthsRef.current[index]) {
-        const synth = new Tone.PolySynth(Tone.Synth);
-        synth.connect(filterNode);
-        synthsRef.current[index] = synth;
-      }
-
-      synthsRef.current[index].set({
-        oscillator: { type: oscillator.type },
-        envelope,
-        detune: oscillator.detuneCents,
-      });
-      synthsRef.current[index].volume.value = oscillator.volumeDb;
-    });
-
-    return synthsRef.current;
-  }, [envelope, getFilter, oscillators]);
+    samplerRef.current = sampler;
+    return sampler;
+  }, []);
 
   const getDrumKit = useCallback(() => {
     if (!kickRef.current) {
@@ -257,58 +236,11 @@ export default function Home() {
   useEffect(() => {
     if (!isPlaying) return;
 
-    // Ensure current oscillator config is reflected in active synth nodes.
-    const synths = getSynths();
-    synths.forEach((synth, index) => {
-      const oscillator = oscillators[index];
-      if (!oscillator) return;
-
-      synth.set({
-        oscillator: { type: oscillator.type },
-        envelope,
-        detune: oscillator.detuneCents,
-      });
-      synth.volume.rampTo(oscillator.volumeDb, 0.05);
-    });
-  }, [getSynths, isPlaying, oscillators, envelope]);
-
-  useEffect(() => {
-    if (!isPlaying || !filterRef.current) return;
-
-    // Smooth live filter updates while audio is running.
-    if (filterRef.current.type !== filter.type) {
-      filterRef.current.type = filter.type;
-    }
-    filterRef.current.frequency.rampTo(filter.frequency, 0.05);
-    filterRef.current.Q.rampTo(filter.q, 0.05);
-  }, [isPlaying, filter]);
-
-  useEffect(() => {
-    if (!isPlaying) return;
-
     const bpm = Number.parseFloat(bpmInput);
     if (!Number.isFinite(bpm) || bpm <= 0) return;
 
     Tone.Transport.bpm.rampTo(bpm, 0.05);
   }, [isPlaying, bpmInput]);
-
-  const updateEnvelope = (key: keyof EnvelopeSettings, value: number) => {
-    setEnvelope((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const updateOscillator = (
-    id: string,
-    key: keyof Pick<OscillatorSettings, "type" | "volumeDb" | "detuneCents">,
-    value: OscillatorType | number,
-  ) => {
-    setOscillators((prev) =>
-      prev.map((oscillator) => (oscillator.id === id ? { ...oscillator, [key]: value } : oscillator)),
-    );
-  };
-
-  const updateFilter = (key: keyof FilterSettings, value: FilterType | number) => {
-    setFilter((prev) => ({ ...prev, [key]: value }));
-  };
 
   const updateGeneratorProbability = (key: keyof GeneratorProbabilities, value: number) => {
     setGeneratorProbabilities((prev) => ({ ...prev, [key]: value }));
@@ -433,9 +365,7 @@ export default function Home() {
         if (!notes) return;
         const secondsPerBeat = 60 / Tone.Transport.bpm.value;
         const eventDurationSeconds = Math.max(0.01, event.durationBeats * secondsPerBeat * 0.9);
-        synthsRef.current.forEach((synth) => {
-          synth.triggerAttackRelease(notes, eventDurationSeconds, time);
-        });
+        samplerRef.current?.triggerAttackRelease(notes, eventDurationSeconds, time);
       }, timelineEvents);
       chordPart.loop = true;
       chordPart.loopEnd = toTransportTicks(loopBeats);
@@ -474,7 +404,7 @@ export default function Home() {
     Tone.Transport.stop();
     Tone.Transport.cancel(0);
     disposeTransportParts();
-    synthsRef.current.forEach((synth) => synth.releaseAll());
+    samplerRef.current?.releaseAll();
     setIsPlaying(false);
   };
 
@@ -508,9 +438,12 @@ export default function Home() {
     }
 
     setError("");
+    setIsLoading(true);
     await Tone.start();
-    getSynths();
+    getPianoSampler();
     getDrumKit();
+    await Tone.loaded();
+    setIsLoading(false);
     buildAndStartTransportPlayback(events, drumSteps, bpm);
     setIsPlaying(true);
   };
@@ -767,8 +700,9 @@ export default function Home() {
             type="button"
             className={styles.playButton}
             onClick={handleTogglePlay}
+            disabled={isLoading}
           >
-            {isPlaying ? "Stop" : "Play"}
+            {isLoading ? "Loading\u2026" : isPlaying ? "Stop" : "Play"}
           </button>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="drum-beat">
@@ -813,154 +747,6 @@ export default function Home() {
               />
             </div>
           </div>
-
-          <details className={styles.collapsible}>
-            <summary className={styles.collapsibleSummary}>Oscillators + ADSR</summary>
-            <div className={styles.oscillatorGrid}>
-              {oscillators.map((oscillator, index) => (
-                <div key={oscillator.id} className={styles.oscillatorCard}>
-                  <p className={styles.sectionTitle}>Oscillator {index + 1}</p>
-                  <label className={styles.label} htmlFor={`osc-type-${oscillator.id}`}>
-                    Type
-                  </label>
-                  <select
-                    id={`osc-type-${oscillator.id}`}
-                    className={styles.input}
-                    value={oscillator.type}
-                    onChange={(e) =>
-                      updateOscillator(oscillator.id, "type", e.target.value as OscillatorType)
-                    }
-                  >
-                    {oscillatorTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                  <div className={styles.knobRow}>
-                    <Knob
-                      id={`osc-volume-${oscillator.id}`}
-                      label="Level"
-                      min={-30}
-                      max={0}
-                      step={1}
-                      value={oscillator.volumeDb}
-                      defaultValue={-12}
-                      onChange={(next) => updateOscillator(oscillator.id, "volumeDb", next)}
-                      formatValue={(next) => `${next} dB`}
-                    />
-                    <Knob
-                      id={`osc-detune-${oscillator.id}`}
-                      label="Detune"
-                      min={-1200}
-                      max={1200}
-                      step={1}
-                      value={oscillator.detuneCents}
-                      defaultValue={0}
-                      dragSensitivity={4}
-                      onChange={(next) => updateOscillator(oscillator.id, "detuneCents", next)}
-                      formatValue={(next) => `${next} ct`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className={styles.envelopePanel}>
-              <p className={styles.sectionTitle}>ADSR Envelope</p>
-              <div className={styles.knobRowAdsr}>
-                <Knob
-                  id="attack"
-                  label="Attack"
-                  min={0}
-                  max={2}
-                  step={0.005}
-                  value={envelope.attack}
-                  defaultValue={0.005}
-                  onChange={(next) => updateEnvelope("attack", next)}
-                  formatValue={(next) => `${next.toFixed(3)} s`}
-                />
-                <Knob
-                  id="decay"
-                  label="Decay"
-                  min={0}
-                  max={2}
-                  step={0.005}
-                  value={envelope.decay}
-                  defaultValue={0.15}
-                  onChange={(next) => updateEnvelope("decay", next)}
-                  formatValue={(next) => `${next.toFixed(3)} s`}
-                />
-                <Knob
-                  id="sustain"
-                  label="Sustain"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={envelope.sustain}
-                  defaultValue={0.25}
-                  onChange={(next) => updateEnvelope("sustain", next)}
-                  formatValue={(next) => next.toFixed(2)}
-                />
-                <Knob
-                  id="release"
-                  label="Release"
-                  min={0.05}
-                  max={4}
-                  step={0.01}
-                  value={envelope.release}
-                  defaultValue={1.2}
-                  onChange={(next) => updateEnvelope("release", next)}
-                  formatValue={(next) => `${next.toFixed(2)} s`}
-                />
-              </div>
-            </div>
-          </details>
-
-          <details className={styles.collapsible}>
-            <summary className={styles.collapsibleSummary}>Filter</summary>
-            <div className={styles.filterPanel}>
-              <label className={styles.label} htmlFor="filter-type">
-                Type
-              </label>
-              <select
-                id="filter-type"
-                className={styles.input}
-                value={filter.type}
-                onChange={(e) => updateFilter("type", e.target.value as FilterType)}
-              >
-                {filterTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-
-              <div className={styles.knobRow}>
-                <Knob
-                  id="filter-frequency"
-                  label="Cutoff"
-                  min={60}
-                  max={18000}
-                  step={1}
-                  value={filter.frequency}
-                  defaultValue={12000}
-                  onChange={(next) => updateFilter("frequency", next)}
-                  formatValue={(next) => `${Math.round(next)} Hz`}
-                />
-                <Knob
-                  id="filter-q"
-                  label="Resonance"
-                  min={0.1}
-                  max={20}
-                  step={0.1}
-                  value={filter.q}
-                  defaultValue={1}
-                  onChange={(next) => updateFilter("q", next)}
-                  formatValue={(next) => next.toFixed(1)}
-                />
-              </div>
-            </div>
-          </details>
 
           {error ? <p className={styles.error}>{error}</p> : null}
         </div>
