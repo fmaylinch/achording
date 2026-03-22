@@ -9,6 +9,9 @@ export type DrumStep = "K" | "S" | "H" | "-";
 export const arpeggioModes = ["off", "up", "down", "up-down", "random"] as const;
 export type ArpeggioMode = (typeof arpeggioModes)[number];
 
+export const arpeggioSpeeds = [1, 2, 3, 4, 6, 8] as const;
+export type ArpeggioSpeed = (typeof arpeggioSpeeds)[number];
+
 export const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 export type OscillatorType = (typeof oscillatorTypes)[number];
 

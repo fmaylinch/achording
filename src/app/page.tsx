@@ -18,6 +18,8 @@ import {
   type DrumStep,
   arpeggioModes,
   type ArpeggioMode,
+  arpeggioSpeeds,
+  type ArpeggioSpeed,
 } from "./types";
 import { roll } from "./utils/math";
 import {
@@ -104,7 +106,8 @@ export default function Home() {
   );
   const [generatorLength, setGeneratorLength] = useState(defaultGeneratorLength);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
-  const [arpeggioMode, setArpeggioMode] = useState<ArpeggioMode>("off");
+  const [arpeggioMode, setArpeggioMode] = useState<ArpeggioMode>("up-down");
+  const [arpeggioSpeed, setArpeggioSpeed] = useState<ArpeggioSpeed>(2);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -305,7 +308,7 @@ export default function Home() {
   }, []);
 
   const buildAndStartTransportPlayback = useCallback(
-    (events: SequenceEvent[], drumSteps: DrumStep[], bpm: number, arpMode: ArpeggioMode) => {
+    (events: SequenceEvent[], drumSteps: DrumStep[], bpm: number, arpMode: ArpeggioMode, arpSpeed: ArpeggioSpeed) => {
       disposeTransportParts();
 
       Tone.Transport.stop();
@@ -331,7 +334,7 @@ export default function Home() {
           samplerRef.current?.triggerAttackRelease(notes, eventDurationSeconds, time);
         } else {
           const arpNotes = getArpeggioNoteSequence(notes, arpMode);
-          const noteInterval = secondsPerBeat / 2;
+          const noteInterval = secondsPerBeat / arpSpeed;
           for (let i = 0; i < arpNotes.length; i++) {
             const noteTime = time + i * noteInterval;
             if (noteTime >= time + eventDurationSeconds) break;
@@ -412,7 +415,7 @@ export default function Home() {
     getDrumKit();
     await Tone.loaded();
     setIsLoading(false);
-    buildAndStartTransportPlayback(events, drumSteps, bpm, arpeggioMode);
+    buildAndStartTransportPlayback(events, drumSteps, bpm, arpeggioMode, arpeggioSpeed);
     setIsPlaying(true);
   };
 
@@ -434,9 +437,9 @@ export default function Home() {
 
     getDrumKit();
     Tone.loaded().then(() => {
-      buildAndStartTransportPlayback(events, drumSteps, Tone.Transport.bpm.value, arpeggioMode);
+      buildAndStartTransportPlayback(events, drumSteps, Tone.Transport.bpm.value, arpeggioMode, arpeggioSpeed);
     });
-  }, [isPlaying, progression, beatsInput, drumBeatInput, arpeggioMode, getDrumKit, buildAndStartTransportPlayback]);
+  }, [isPlaying, progression, beatsInput, drumBeatInput, arpeggioMode, arpeggioSpeed, getDrumKit, buildAndStartTransportPlayback]);
 
   useEffect(() => {
     return () => {
@@ -452,7 +455,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.header}>
           <h1>Achording</h1>
-          <p className={styles.versionMeta}>v0.2 · Latest changes: respect default chord length</p>
+          <p className={styles.versionMeta}>v0.2.1 · Latest changes: piano / arpeggio / drumkit</p>
         </div>
         <div className={styles.form}>
           <details className={styles.collapsible}>
@@ -667,22 +670,42 @@ export default function Home() {
             <a href="https://tonaljs.github.io/tonal/docs/groups/chords" target="_blank" rel="noopener noreferrer">Cmaj7</a>.
             Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
           </p>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="arpeggio-mode">
-              Arpeggio
-            </label>
-            <select
-              id="arpeggio-mode"
-              className={styles.input}
-              value={arpeggioMode}
-              onChange={(e) => setArpeggioMode(e.target.value as ArpeggioMode)}
-            >
-              {arpeggioModes.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
+          <div className={styles.row}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="arpeggio-mode">
+                Arpeggio
+              </label>
+              <select
+                id="arpeggio-mode"
+                className={styles.input}
+                value={arpeggioMode}
+                onChange={(e) => setArpeggioMode(e.target.value as ArpeggioMode)}
+              >
+                {arpeggioModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="arpeggio-speed">
+                Arpeggio Speed
+              </label>
+              <select
+                id="arpeggio-speed"
+                className={styles.input}
+                value={arpeggioSpeed}
+                onChange={(e) => setArpeggioSpeed(Number(e.target.value) as ArpeggioSpeed)}
+                disabled={arpeggioMode === "off"}
+              >
+                {arpeggioSpeeds.map((speed) => (
+                  <option key={speed} value={speed}>
+                    1/{speed}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <button
             type="button"

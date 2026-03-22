@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## TLDR
+
+Run local dev server:
+```shell
+pnpm dev
+```
+
+Deploy to https://achording.vercel.app:
+```shell
+vercel --prod
+```
+
 ## Getting Started
 
 First, run the development server:
