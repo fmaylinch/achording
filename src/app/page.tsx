@@ -16,6 +16,8 @@ import {
   type GeneratorProbabilities,
   type SequenceEvent,
   type DrumStep,
+  arpeggioModes,
+  type ArpeggioMode,
 } from "./types";
 import { roll } from "./utils/math";
 import {
@@ -102,6 +104,7 @@ export default function Home() {
   );
   const [generatorLength, setGeneratorLength] = useState(defaultGeneratorLength);
   const [isProgressionFlashing, setIsProgressionFlashing] = useState(false);
+  const [arpeggioMode, setArpeggioMode] = useState<ArpeggioMode>("off");
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -284,8 +287,25 @@ export default function Home() {
     setError("");
   };
 
+  const getArpeggioNoteSequence = useCallback((notes: string[], mode: ArpeggioMode): string[] => {
+    switch (mode) {
+      case "off":
+        return notes;
+      case "up":
+        return [...notes];
+      case "down":
+        return [...notes].reverse();
+      case "up-down": {
+        if (notes.length <= 1) return [...notes];
+        return [...notes, ...notes.slice(1, -1).reverse()];
+      }
+      case "random":
+        return [...notes].sort(() => Math.random() - 0.5);
+    }
+  }, []);
+
   const buildAndStartTransportPlayback = useCallback(
-    (events: SequenceEvent[], drumSteps: DrumStep[], bpm: number) => {
+    (events: SequenceEvent[], drumSteps: DrumStep[], bpm: number, arpMode: ArpeggioMode) => {
       disposeTransportParts();
 
       Tone.Transport.stop();
@@ -306,7 +326,19 @@ export default function Home() {
         if (!notes) return;
         const secondsPerBeat = 60 / Tone.Transport.bpm.value;
         const eventDurationSeconds = Math.max(0.01, event.durationBeats * secondsPerBeat * 0.9);
-        samplerRef.current?.triggerAttackRelease(notes, eventDurationSeconds, time);
+
+        if (arpMode === "off") {
+          samplerRef.current?.triggerAttackRelease(notes, eventDurationSeconds, time);
+        } else {
+          const arpNotes = getArpeggioNoteSequence(notes, arpMode);
+          const noteInterval = secondsPerBeat / 2;
+          for (let i = 0; i < arpNotes.length; i++) {
+            const noteTime = time + i * noteInterval;
+            if (noteTime >= time + eventDurationSeconds) break;
+            const noteDuration = Math.max(0.01, noteInterval * 0.9);
+            samplerRef.current?.triggerAttackRelease(arpNotes[i], noteDuration, noteTime);
+          }
+        }
       }, timelineEvents);
       chordPart.loop = true;
       chordPart.loopEnd = toTransportTicks(loopBeats);
@@ -333,7 +365,7 @@ export default function Home() {
 
       Tone.Transport.start("+0.02");
     },
-    [disposeTransportParts, toTransportTicks],
+    [disposeTransportParts, toTransportTicks, getArpeggioNoteSequence],
   );
 
   const stopPlayback = () => {
@@ -380,7 +412,7 @@ export default function Home() {
     getDrumKit();
     await Tone.loaded();
     setIsLoading(false);
-    buildAndStartTransportPlayback(events, drumSteps, bpm);
+    buildAndStartTransportPlayback(events, drumSteps, bpm, arpeggioMode);
     setIsPlaying(true);
   };
 
@@ -402,9 +434,9 @@ export default function Home() {
 
     getDrumKit();
     Tone.loaded().then(() => {
-      buildAndStartTransportPlayback(events, drumSteps, Tone.Transport.bpm.value);
+      buildAndStartTransportPlayback(events, drumSteps, Tone.Transport.bpm.value, arpeggioMode);
     });
-  }, [isPlaying, progression, beatsInput, drumBeatInput, getDrumKit, buildAndStartTransportPlayback]);
+  }, [isPlaying, progression, beatsInput, drumBeatInput, arpeggioMode, getDrumKit, buildAndStartTransportPlayback]);
 
   useEffect(() => {
     return () => {
@@ -635,6 +667,23 @@ export default function Home() {
             <a href="https://tonaljs.github.io/tonal/docs/groups/chords" target="_blank" rel="noopener noreferrer">Cmaj7</a>.
             Optional <code>@[+|-]octave</code> and <code>*beats</code>. <code>R</code> or <code>rest</code> for silence.
           </p>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="arpeggio-mode">
+              Arpeggio
+            </label>
+            <select
+              id="arpeggio-mode"
+              className={styles.input}
+              value={arpeggioMode}
+              onChange={(e) => setArpeggioMode(e.target.value as ArpeggioMode)}
+            >
+              {arpeggioModes.map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             className={styles.playButton}

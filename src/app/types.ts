@@ -6,6 +6,9 @@ export type SequenceEvent = {
 export type InputNotation = "chords" | "notes";
 export type DrumStep = "K" | "S" | "H" | "-";
 
+export const arpeggioModes = ["off", "up", "down", "up-down", "random"] as const;
+export type ArpeggioMode = (typeof arpeggioModes)[number];
+
 export const oscillatorTypes = ["sine", "triangle", "sawtooth", "square"] as const;
 export type OscillatorType = (typeof oscillatorTypes)[number];
 
